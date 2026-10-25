@@ -227,3 +227,42 @@ describe("render", () => {
     expect(breadboard.ok && breadboard.svg.includes("Go")).toBe(true);
   });
 });
+
+describe("diagnostics", () => {
+  /** Returns each diagnostic as its code and the exact source text its span covers. */
+  function pointed(source: string): [string, string][] {
+    return build({ source }).diagnostics.map((diagnostic) => [diagnostic.code, source.slice(diagnostic.span.start, diagnostic.span.end)]);
+  }
+
+  test("each code has a fixed severity", () => {
+    expect(build({ source: "(" }).diagnostics[0]).toMatchObject({ code: "unclosed-list", severity: "error" });
+    expect(build({ source: `(board "A" (screen :a "A" (button "Go" -> :b)))` }).diagnostics[0]).toMatchObject({
+      code: "unknown-target",
+      severity: "gap",
+    });
+  });
+
+  test("story gaps point at the exact value, not the whole step", () => {
+    const source = `(board "A" (screen :a "A" (field "Email") (button "Go" -> :b)) (screen :b "B"))
+      (story "S" (step :a "1" :touch "Mail" :via "Og") (step :ghost "2" :via "Last"))`;
+    expect(pointed(source)).toEqual([
+      ["unknown-touch", '"Mail"'],
+      ["unknown-via", '"Og"'],
+      ["unknown-step-place", ":ghost"],
+      ["via-on-last-step", '"Last"'],
+    ]);
+  });
+
+  test("wire and place gaps point at the id", () => {
+    const source = `(board "A" (screen :s "S") (screen :x "X" (link "y" -> :y)) (screen :y "Y" (link "x" -> :x) (link "z" -> :nowhere "label")))`;
+    expect(pointed(source)).toEqual([
+      ["unknown-target", ":nowhere"],
+      ["unreachable", ":x"],
+      ["unreachable", ":y"],
+    ]);
+  });
+
+  test("a duplicate id points at the second id", () => {
+    expect(pointed(`(board "A" (screen :a "A") (screen :a "B"))`)).toEqual([["duplicate-id", ":a"]]);
+  });
+});

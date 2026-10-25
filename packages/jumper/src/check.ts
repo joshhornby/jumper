@@ -1,4 +1,4 @@
-import type { Diagnostic } from "./diagnostics.ts";
+import { type Diagnostic, type DiagnosticCode, diagnostic, type Span } from "./diagnostics.ts";
 import { type Board, type Place, type Widget, type Wire, wiresOf, wireText } from "./model.ts";
 
 /**
@@ -34,8 +34,8 @@ function findWidget({ place, text }: { place: Place; text: string }): number {
 
 export function analyse(board: Board): Analysis {
   const diagnostics: Diagnostic[] = [];
-  const gap = ({ message, span }: { message: string; span: Diagnostic["span"] }): void => {
-    diagnostics.push({ severity: "gap", message, span });
+  const gap = ({ code, message, span }: { code: DiagnosticCode; message: string; span: Span }): void => {
+    diagnostics.push(diagnostic({ code, message, span }));
   };
 
   const places = new Map(board.places.map((place) => [place.id, place]));
@@ -45,7 +45,11 @@ export function analyse(board: Board): Analysis {
   wires.forEach((wire, index) => {
     if (!places.has(wire.to)) {
       danglingWires.add(index);
-      gap({ message: `"${wire.affordance}" is wired to :${wire.to}, but no place has that id.`, span: wire.span });
+      gap({
+        code: "unknown-target",
+        message: `"${wire.affordance}" is wired to :${wire.to}, but no place has that id.`,
+        span: wire.targetSpan,
+      });
     }
   });
 
@@ -70,22 +74,27 @@ export function analyse(board: Board): Analysis {
   for (const place of board.places) {
     if (reached.has(place.id)) continue;
     unreachable.add(place.id);
-    gap({ message: `${place.title} is unreachable. No entry point leads to it.`, span: place.span });
+    gap({ code: "unreachable", message: `${place.title} is unreachable. No entry point leads to it.`, span: place.idSpan });
   }
 
   const stories: StoryPath[] = board.stories.map((story) => {
     const hops: Hop[] = [];
     const highlights: (number | null)[] = [];
-    if (story.steps.length === 0) gap({ message: `The story "${story.title}" has no steps.`, span: story.span });
+    if (story.steps.length === 0) gap({ code: "empty-story", message: `The story "${story.title}" has no steps.`, span: story.span });
 
     story.steps.forEach((step, index) => {
       const place = places.get(step.place);
       if (place === undefined) {
-        gap({ message: `Step ${index + 1} is on :${step.place}, but no place has that id.`, span: step.span });
+        gap({
+          code: "unknown-step-place",
+          message: `Step ${index + 1} is on :${step.place}, but no place has that id.`,
+          span: step.placeSpan,
+        });
         highlights.push(null);
       } else if (step.touch !== null) {
-        const touched = findWidget({ place, text: step.touch });
-        if (touched === -1) gap({ message: `${place.title} has no widget "${step.touch}" to touch.`, span: step.span });
+        const touched = findWidget({ place, text: step.touch.text });
+        if (touched === -1)
+          gap({ code: "unknown-touch", message: `${place.title} has no widget "${step.touch.text}" to touch.`, span: step.touch.span });
         highlights.push(touched === -1 ? null : touched);
       } else {
         highlights.push(null);
@@ -93,7 +102,13 @@ export function analyse(board: Board): Analysis {
 
       const next = story.steps[index + 1];
       if (next === undefined) {
-        if (step.via !== null) gap({ message: `The last step has :via "${step.via}", but no step comes after it.`, span: step.span });
+        if (step.via !== null) {
+          gap({
+            code: "via-on-last-step",
+            message: `The last step has :via "${step.via.text}", but no step comes after it.`,
+            span: step.via.span,
+          });
+        }
         return;
       }
       // A missing place already has its own gap, so the hop is marked without a second one.
@@ -103,12 +118,13 @@ export function analyse(board: Board): Analysis {
       }
 
       if (step.via !== null) {
-        const via = step.via;
+        const via = step.via.text;
+        const viaSpan = step.via.span;
         const candidates = wires
           .map((wire, wireIndex) => ({ wire, wireIndex }))
           .filter(({ wire }) => wire.from === step.place && (same(wire.affordance, via) || (wire.label !== null && same(wire.label, via))));
         if (candidates.length === 0) {
-          gap({ message: `${place.title} has no wired affordance "${via}".`, span: step.span });
+          gap({ code: "unknown-via", message: `${place.title} has no wired affordance "${via}".`, span: viaSpan });
           hops.push({ kind: "missing", from: step.place, to: next.place });
           return;
         }
@@ -119,7 +135,11 @@ export function analyse(board: Board): Analysis {
         const match = candidates.find(({ wire }) => wire.to === next.place);
         if (match === undefined) {
           const actual = candidates[0]?.wire.to ?? "";
-          gap({ message: `"${via}" leads to :${actual}, but the next step is on :${next.place}.`, span: step.span });
+          gap({
+            code: "via-leads-elsewhere",
+            message: `"${via}" leads to :${actual}, but the next step is on :${next.place}.`,
+            span: viaSpan,
+          });
           hops.push({ kind: "missing", from: step.place, to: next.place });
           return;
         }
@@ -143,10 +163,15 @@ export function analyse(board: Board): Analysis {
         return;
       }
       if (joining.length === 0) {
-        gap({ message: `No wire leads from :${step.place} to :${next.place}. Wire an affordance, or fix the story.`, span: step.span });
+        gap({
+          code: "hop-without-wire",
+          message: `No wire leads from :${step.place} to :${next.place}. Wire an affordance, or fix the story.`,
+          span: step.span,
+        });
       } else {
         const options = joining.map(({ wire }) => `"${wire.affordance}"`).join(", ");
         gap({
+          code: "ambiguous-hop",
           message: `More than one wire leads from :${step.place} to :${next.place}. Add :via with one of ${options}.`,
           span: step.span,
         });

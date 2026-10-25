@@ -1,4 +1,4 @@
-import type { Diagnostic, Span } from "./diagnostics.ts";
+import { type Diagnostic, type DiagnosticCode, diagnostic, type Span } from "./diagnostics.ts";
 
 export type Expr =
   | { kind: "list"; items: Expr[]; span: Span }
@@ -9,9 +9,11 @@ export type Expr =
 export type ReadResult = { exprs: Expr[]; diagnostics: Diagnostic[] };
 
 class SyntaxFault extends Error {
+  readonly code: DiagnosticCode;
   readonly span: Span;
-  constructor({ message, span }: { message: string; span: Span }) {
+  constructor({ code, message, span }: { code: DiagnosticCode; message: string; span: Span }) {
     super(message);
+    this.code = code;
     this.span = span;
   }
 }
@@ -58,6 +60,7 @@ export function read(source: string): ReadResult {
       position += 1;
     }
     throw new SyntaxFault({
+      code: "unclosed-string",
       message: "This string has no closing quote.",
       span: { start, end: source.length },
     });
@@ -88,6 +91,7 @@ export function read(source: string): ReadResult {
         skipTrivia();
         if (position >= source.length) {
           throw new SyntaxFault({
+            code: "unclosed-list",
             message: "This list has no closing parenthesis.",
             span: { start, end: start + 1 },
           });
@@ -101,6 +105,7 @@ export function read(source: string): ReadResult {
     }
     if (char === ")") {
       throw new SyntaxFault({
+        code: "unmatched-paren",
         message: "This closing parenthesis has no matching opening parenthesis.",
         span: { start: position, end: position + 1 },
       });
@@ -120,7 +125,7 @@ export function read(source: string): ReadResult {
     if (fault instanceof SyntaxFault) {
       return {
         exprs: [],
-        diagnostics: [{ severity: "error", message: fault.message, span: fault.span }],
+        diagnostics: [diagnostic({ code: fault.code, message: fault.message, span: fault.span })],
       };
     }
     throw fault;

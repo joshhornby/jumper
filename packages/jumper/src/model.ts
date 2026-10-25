@@ -1,6 +1,12 @@
 import type { Span } from "./diagnostics.ts";
 
-export type WireRef = { target: string; label: string | null; span: Span };
+export type WireRef = {
+  target: string;
+  /** The `:target` keyword alone, so a fix can replace just the id. */
+  targetSpan: Span;
+  label: string | null;
+  span: Span;
+};
 
 type Wired = { wire: WireRef | null; span: Span };
 
@@ -33,6 +39,7 @@ export type PlaceKind = "screen" | "slot" | "system" | "decision";
 export type Place = {
   kind: PlaceKind;
   id: string;
+  idSpan: Span;
   title: string;
   /** 0 means the place sits outside any region. */
   region: number;
@@ -50,11 +57,15 @@ export type Region = {
   span: Span;
 };
 
+/** A `:via` or `:touch` value. The span covers the string, so diagnostics can point at it. */
+export type StepOption = { text: string; span: Span };
+
 export type Step = {
   place: string;
+  placeSpan: Span;
   caption: string;
-  via: string | null;
-  touch: string | null;
+  via: StepOption | null;
+  touch: StepOption | null;
   span: Span;
 };
 
@@ -74,6 +85,7 @@ export type Wire = {
   /** The text a reader sees on the wire's source end: the affordance or branch. */
   affordance: string;
   label: string | null;
+  targetSpan: Span;
   span: Span;
 };
 
@@ -101,6 +113,7 @@ export function wiresOf(board: Board): Wire[] {
         to: widget.wire.target,
         affordance: wireText(widget),
         label: widget.wire.label,
+        targetSpan: widget.wire.targetSpan,
         span: widget.wire.span,
       });
     });

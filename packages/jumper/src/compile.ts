@@ -1,4 +1,4 @@
-import type { Diagnostic, Span } from "./diagnostics.ts";
+import { type Diagnostic, type DiagnosticCode, diagnostic, type Span } from "./diagnostics.ts";
 import type { Board, Column, Note, Place, PlaceKind, Region, Step, Story, Widget, WireRef } from "./model.ts";
 import { type Expr, read } from "./reader.ts";
 
@@ -58,38 +58,39 @@ export function compile(source: string): CompileResult {
   if (diagnostics.length > 0) return { board: null, diagnostics };
 
   const errors: Diagnostic[] = [];
-  const fail = ({ message, span }: { message: string; span: Span }): void => {
-    errors.push({ severity: "error", message, span });
+  const fail = ({ code, message, span }: { code: DiagnosticCode; message: string; span: Span }): void => {
+    errors.push(diagnostic({ code, message, span }));
   };
 
   const expectList = (expr: Expr, context: string): ListExpr | null => {
     if (expr.kind === "list") return expr;
-    fail({ message: `Expected a (form …) ${context}.`, span: expr.span });
+    fail({ code: "expected-form", message: `Expected a (form …) ${context}.`, span: expr.span });
     return null;
   };
 
   const expectString = ({ expr, what, form }: { expr: Expr | undefined; what: string; form: ListExpr }): string | null => {
     if (expr?.kind === "string") return expr.value;
-    fail({ message: `Expected ${what} as a "string".`, span: expr?.span ?? form.span });
+    fail({ code: "expected-string", message: `Expected ${what} as a "string".`, span: expr?.span ?? form.span });
     return null;
   };
 
   const readWire = ({ rest, form }: { rest: Expr[]; form: ListExpr }): WireRef | null => {
     const [target, label, ...extra] = rest;
     if (target?.kind !== "keyword") {
-      fail({ message: "Expected a :place-id after ->.", span: target?.span ?? form.span });
+      fail({ code: "expected-target", message: "Expected a :place-id after ->.", span: target?.span ?? form.span });
       return null;
     }
     if (label !== undefined && label.kind !== "string") {
-      fail({ message: 'A wire label must be a "string".', span: label.span });
+      fail({ code: "bad-wire-label", message: 'A wire label must be a "string".', span: label.span });
       return null;
     }
     const first = extra[0];
     if (first !== undefined) {
-      fail({ message: "Unexpected value after the wire.", span: first.span });
+      fail({ code: "unexpected-value", message: "Unexpected value after the wire.", span: first.span });
     }
     return {
       target: target.name,
+      targetSpan: target.span,
       label: label?.kind === "string" ? label.value : null,
       span: { start: target.span.start, end: (label ?? target).span.end },
     };
@@ -109,14 +110,14 @@ export function compile(source: string): CompileResult {
     const strings: string[] = [];
     for (const arg of args) {
       if (arg.kind !== "string") {
-        fail({ message: `(${name} …) takes only "strings" here.`, span: arg.span });
+        fail({ code: "not-a-string", message: `(${name} …) takes only "strings" here.`, span: arg.span });
         return null;
       }
       strings.push(arg.value);
     }
     if (strings.length < min || strings.length > max) {
       const count = min === max ? `${min}` : max === Number.POSITIVE_INFINITY ? `at least ${min}` : `${min} to ${max}`;
-      fail({ message: `(${name} …) takes ${count} string${min === 1 && max === 1 ? "" : "s"}.`, span: form.span });
+      fail({ code: "argument-count", message: `(${name} …) takes ${count} string${min === 1 && max === 1 ? "" : "s"}.`, span: form.span });
       return null;
     }
     return strings;
@@ -128,7 +129,7 @@ export function compile(source: string): CompileResult {
       const col = expectList(item, "inside a board widget");
       if (col === null) return null;
       if (headOf(col) !== "col") {
-        fail({ message: 'A board widget holds only (col "Title" "card" …) forms.', span: col.span });
+        fail({ code: "bad-columns", message: 'A board widget holds only (col "Title" "card" …) forms.', span: col.span });
         return null;
       }
       const strings = stringsOf({ args: col.items.slice(1), form: col, min: 1, max: Number.POSITIVE_INFINITY });
@@ -142,7 +143,7 @@ export function compile(source: string): CompileResult {
   const readWidget = (form: ListExpr): Widget | null => {
     const name = headOf(form);
     if (name === null) {
-      fail({ message: 'A widget form starts with its name, such as (button "Save").', span: form.span });
+      fail({ code: "missing-widget-name", message: 'A widget form starts with its name, such as (button "Save").', span: form.span });
       return null;
     }
 
@@ -150,15 +151,15 @@ export function compile(source: string): CompileResult {
       const [first, second, ...rest] = form.items.slice(1);
       if (first?.kind === "keyword") {
         if (second?.kind !== "string") {
-          fail({ message: '(to :id "condition") needs a condition string.', span: second?.span ?? form.span });
+          fail({ code: "missing-condition", message: '(to :id "condition") needs a condition string.', span: second?.span ?? form.span });
           return null;
         }
         const extra = rest[0];
-        if (extra !== undefined) fail({ message: "Unexpected value in (to …).", span: extra.span });
+        if (extra !== undefined) fail({ code: "unexpected-value", message: "Unexpected value in (to …).", span: extra.span });
         return {
           type: "to",
           text: second.value,
-          wire: { target: first.name, label: null, span: first.span },
+          wire: { target: first.name, targetSpan: first.span, label: null, span: first.span },
           span: form.span,
         };
       }
@@ -167,7 +168,7 @@ export function compile(source: string): CompileResult {
       const strings = stringsOf({ args, form, min: 1, max: 1 });
       if (strings === null) return null;
       if (wire === null) {
-        fail({ message: '(to …) needs a target: (to :id "condition").', span: form.span });
+        fail({ code: "missing-target", message: '(to …) needs a target: (to :id "condition").', span: form.span });
         return null;
       }
       return { type: "to", text: strings[0] ?? "", wire, span: form.span };
@@ -200,13 +201,13 @@ export function compile(source: string): CompileResult {
       const strings = stringsOf({ args, form, min: 1, max: 1 });
       if (strings === null) return null;
       if (type === "out" && wire === null) {
-        fail({ message: '(out …) needs a target: (out "label" -> :id).', span: form.span });
+        fail({ code: "missing-target", message: '(out …) needs a target: (out "label" -> :id).', span: form.span });
         return null;
       }
       return { type, text: strings[0] ?? "", wire, span: form.span };
     }
 
-    fail({ message: `Unknown widget (${name} …).`, span: form.items[0]?.span ?? form.span });
+    fail({ code: "unknown-widget", message: `Unknown widget (${name} …).`, span: form.items[0]?.span ?? form.span });
     return null;
   };
 
@@ -220,6 +221,7 @@ export function compile(source: string): CompileResult {
     const [, idExpr, titleExpr, ...body] = form.items;
     if (idExpr?.kind !== "keyword") {
       fail({
+        code: "missing-id",
         message: `(${headOf(form)} …) needs an id first, such as (${headOf(form)} :checkout "Checkout").`,
         span: idExpr?.span ?? form.span,
       });
@@ -228,7 +230,7 @@ export function compile(source: string): CompileResult {
     const title = expectString({ expr: titleExpr, what: "a title", form });
     if (title === null) return null;
 
-    const place: Place = { kind, id: idExpr.name, title, region, widgets: [], notes: [], span: form.span };
+    const place: Place = { kind, id: idExpr.name, idSpan: idExpr.span, title, region, widgets: [], notes: [], span: form.span };
     for (const item of body) {
       const child = expectList(item, `inside ${title}`);
       if (child === null) continue;
@@ -242,7 +244,7 @@ export function compile(source: string): CompileResult {
       if (widget === null) continue;
       const problem = ALLOWED[kind](widget.type);
       if (problem !== null) {
-        fail({ message: problem, span: child.span });
+        fail({ code: "widget-not-allowed", message: problem, span: child.span });
         continue;
       }
       place.widgets.push(widget);
@@ -253,10 +255,14 @@ export function compile(source: string): CompileResult {
   const readStep = (form: ListExpr): Step | null => {
     const [, placeExpr, ...rest] = form.items;
     if (placeExpr?.kind !== "keyword") {
-      fail({ message: '(step …) needs a place id first, such as (step :checkout "Pays").', span: placeExpr?.span ?? form.span });
+      fail({
+        code: "missing-id",
+        message: '(step …) needs a place id first, such as (step :checkout "Pays").',
+        span: placeExpr?.span ?? form.span,
+      });
       return null;
     }
-    const step: Step = { place: placeExpr.name, caption: "", via: null, touch: null, span: form.span };
+    const step: Step = { place: placeExpr.name, placeSpan: placeExpr.span, caption: "", via: null, touch: null, span: form.span };
     let index = 0;
     if (rest[0]?.kind === "string") {
       step.caption = rest[0].value;
@@ -266,18 +272,22 @@ export function compile(source: string): CompileResult {
       const key = rest[index];
       const value = rest[index + 1];
       if (key?.kind !== "keyword" || (key.name !== "via" && key.name !== "touch")) {
-        fail({ message: 'A step takes a caption, then :via "Affordance" and :touch "Widget".', span: key?.span ?? form.span });
+        fail({
+          code: "bad-step-option",
+          message: 'A step takes a caption, then :via "Affordance" and :touch "Widget".',
+          span: key?.span ?? form.span,
+        });
         return null;
       }
       if (value?.kind !== "string") {
-        fail({ message: `:${key.name} needs a "string".`, span: value?.span ?? key.span });
+        fail({ code: "missing-option-value", message: `:${key.name} needs a "string".`, span: value?.span ?? key.span });
         return null;
       }
       if (step[key.name] !== null) {
-        fail({ message: `This step already has :${key.name}. A step takes it once.`, span: key.span });
+        fail({ code: "duplicate-option", message: `This step already has :${key.name}. A step takes it once.`, span: key.span });
         return null;
       }
-      step[key.name] = value.value;
+      step[key.name] = { text: value.value, span: value.span };
       index += 2;
     }
     return step;
@@ -291,7 +301,7 @@ export function compile(source: string): CompileResult {
       const child = expectList(item, "inside a story");
       if (child === null) continue;
       if (headOf(child) !== "step") {
-        fail({ message: "A story holds only (step …) forms.", span: child.span });
+        fail({ code: "story-holds-steps", message: "A story holds only (step …) forms.", span: child.span });
         continue;
       }
       const step = readStep(child);
@@ -306,7 +316,7 @@ export function compile(source: string): CompileResult {
 
   const addPlace = ({ place, target }: { place: Place; target: Board }): void => {
     if (seen.has(place.id)) {
-      fail({ message: `The id :${place.id} is used twice.`, span: place.span });
+      fail({ code: "duplicate-id", message: `The id :${place.id} is used twice.`, span: place.idSpan });
       return;
     }
     seen.set(place.id, place.span);
@@ -347,7 +357,7 @@ export function compile(source: string): CompileResult {
           if (placeForm === null) continue;
           const kind = PLACE_FORMS.get(headOf(placeForm) ?? "");
           if (kind === undefined) {
-            fail({ message: "A region holds only screen, slot, system and decision forms.", span: placeForm.span });
+            fail({ code: "unknown-form", message: "A region holds only screen, slot, system and decision forms.", span: placeForm.span });
             continue;
           }
           const place = readPlace({ form: placeForm, kind, region: region.number });
@@ -361,6 +371,7 @@ export function compile(source: string): CompileResult {
       const kind = PLACE_FORMS.get(head);
       if (kind === undefined) {
         fail({
+          code: "unknown-form",
           message:
             head === "story"
               ? "Write (story …) after the board, not inside it."
@@ -384,7 +395,7 @@ export function compile(source: string): CompileResult {
     const head = headOf(form);
     if (head === "board") {
       if (board !== null) {
-        fail({ message: "A file holds one board.", span: form.span });
+        fail({ code: "duplicate-board", message: "A file holds one board.", span: form.span });
         continue;
       }
       board = readBoard(form);
@@ -392,12 +403,12 @@ export function compile(source: string): CompileResult {
       const story = readStory(form);
       if (story !== null) stories.push(story);
     } else {
-      fail({ message: `Unknown top-level form (${head ?? "…"} …). Use (board …) or (story …).`, span: form.span });
+      fail({ code: "unknown-form", message: `Unknown top-level form (${head ?? "…"} …). Use (board …) or (story …).`, span: form.span });
     }
   }
 
   if (board === null && errors.length === 0) {
-    fail({ message: 'Add a (board "Title" …) form to draw something.', span: { start: 0, end: 0 } });
+    fail({ code: "missing-board", message: 'Add a (board "Title" …) form to draw something.', span: { start: 0, end: 0 } });
   }
   if (errors.length > 0 || board === null) return { board: null, diagnostics: errors };
   board.stories = stories;
