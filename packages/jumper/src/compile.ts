@@ -3,7 +3,19 @@ import type { Board, Column, Note, Place, PlaceKind, Region, Step, Story, Widget
 import { type Expr, read } from "./reader.ts";
 import { closest } from "./suggest.ts";
 
-export type CompileResult = { board: Board | null; diagnostics: Diagnostic[] };
+/**
+ * The parts of a partial board that lost content to an error. Gaps about them are likely to be
+ * echoes of the error, so the analyser does not report them.
+ */
+export type Incomplete = { places: ReadonlySet<string>; stories: ReadonlySet<number> };
+
+/**
+ * A board with errors is still returned as `partial` when Jumper could read one, so the analyser
+ * can report gaps in the rest of it. Only a board with no errors is drawn.
+ */
+export type CompileResult =
+  | { ok: true; board: Board; diagnostics: Diagnostic[] }
+  | { ok: false; partial: Board | null; incomplete: Incomplete; diagnostics: Diagnostic[] };
 
 type ListExpr = Extract<Expr, { kind: "list" }>;
 
@@ -67,7 +79,7 @@ function headOf(list: ListExpr): string | null {
 
 export function compile(source: string): CompileResult {
   const { exprs, diagnostics } = read(source);
-  if (diagnostics.length > 0) return { board: null, diagnostics };
+  if (diagnostics.length > 0) return { ok: false, partial: null, incomplete: { places: new Set(), stories: new Set() }, diagnostics };
 
   const errors: Diagnostic[] = [];
   const fail = (input: DiagnosticInput): void => {
@@ -359,10 +371,12 @@ export function compile(source: string): CompileResult {
 
   let board: Board | null = null;
   let boardSpan: Span | null = null;
+  const incompletePlaces = new Set<string>();
+  const incompleteStories = new Set<number>();
   const stories: Story[] = [];
   const seen = new Map<string, Span>();
 
-  const addPlace = ({ place, target }: { place: Place; target: Board }): void => {
+  const addPlace = ({ place, target }: { place: Place; target: Board }): boolean => {
     const first = seen.get(place.id);
     if (first !== undefined) {
       fail({
@@ -371,10 +385,26 @@ export function compile(source: string): CompileResult {
         span: place.idSpan,
         related: [{ span: first, message: `:${place.id} is first used here.` }],
       });
-      return;
+      return false;
     }
     seen.set(place.id, place.idSpan);
     target.places.push(place);
+    return true;
+  };
+
+  /**
+   * Reads one place form and adds it to the board. When the form has an error, its id is marked
+   * incomplete, so that gaps about it do not repeat the error. Returns the id of the added place.
+   */
+  const tracked = ({ form, read, target }: { form: ListExpr; read: () => Place | null; target: Board }): string | null => {
+    const before = errors.length;
+    const place = read();
+    const added = place !== null && addPlace({ place, target });
+    if (errors.length > before) {
+      const idExpr = form.items[1];
+      if (idExpr?.kind === "keyword") incompletePlaces.add(idExpr.name);
+    }
+    return added ? place.id : null;
   };
 
   const readBoard = (form: ListExpr): Board | null => {
@@ -409,41 +439,45 @@ export function compile(source: string): CompileResult {
         for (const inner of child.items.slice(bodyStart)) {
           const placeForm = expectList(inner, "inside the region");
           if (placeForm === null) continue;
-          const kind = PLACE_FORMS.get(headOf(placeForm) ?? "");
-          if (kind === undefined) {
-            fail({
-              code: "unknown-form",
-              message: "A region holds only screen, slot, system and decision forms.",
-              span: placeForm.items[0]?.span ?? placeForm.span,
-              fix: nameFix({ head: placeForm.items[0], candidates: [...PLACE_FORMS.keys()] }),
-            });
-            continue;
-          }
-          const place = readPlace({ form: placeForm, kind, region: region.number });
-          if (place === null) continue;
-          addPlace({ place, target: result });
-          region.placeIds.push(place.id);
+          const id = tracked({
+            form: placeForm,
+            read: () => {
+              const kind = PLACE_FORMS.get(headOf(placeForm) ?? "");
+              if (kind !== undefined) return readPlace({ form: placeForm, kind, region: region.number });
+              fail({
+                code: "unknown-form",
+                message: "A region holds only screen, slot, system and decision forms.",
+                span: placeForm.items[0]?.span ?? placeForm.span,
+                fix: nameFix({ head: placeForm.items[0], candidates: [...PLACE_FORMS.keys()] }),
+              });
+              return null;
+            },
+            target: result,
+          });
+          if (id !== null) region.placeIds.push(id);
         }
         continue;
       }
 
-      const kind = PLACE_FORMS.get(head);
-      if (kind === undefined) {
-        fail({
-          code: "unknown-form",
-          message:
-            head === "story"
-              ? "Write (story …) after the board, not inside it."
-              : `Unknown form (${head} …) in the board. Use region, screen, slot, system or decision.`,
-          span: head === "story" ? child.span : (child.items[0]?.span ?? child.span),
-          fix: head === "story" ? null : nameFix({ head: child.items[0], candidates: BOARD_FORMS }),
-        });
-        continue;
-      }
-      const place = readPlace({ form: child, kind, region: 0 });
-      if (place === null) continue;
-      addPlace({ place, target: result });
-      loose.placeIds.push(place.id);
+      const id = tracked({
+        form: child,
+        read: () => {
+          const kind = PLACE_FORMS.get(head);
+          if (kind !== undefined) return readPlace({ form: child, kind, region: 0 });
+          fail({
+            code: "unknown-form",
+            message:
+              head === "story"
+                ? "Write (story …) after the board, not inside it."
+                : `Unknown form (${head} …) in the board. Use region, screen, slot, system or decision.`,
+            span: head === "story" ? child.span : (child.items[0]?.span ?? child.span),
+            fix: head === "story" ? null : nameFix({ head: child.items[0], candidates: BOARD_FORMS }),
+          });
+          return null;
+        },
+        target: result,
+      });
+      if (id !== null) loose.placeIds.push(id);
     }
     if (loose.placeIds.length > 0) result.regions.unshift(loose);
     return result;
@@ -466,8 +500,11 @@ export function compile(source: string): CompileResult {
       boardSpan = form.items[0]?.span ?? form.span;
       board = readBoard(form);
     } else if (head === "story") {
+      const before = errors.length;
       const story = readStory(form);
-      if (story !== null) stories.push(story);
+      if (story === null) continue;
+      if (errors.length > before) incompleteStories.add(stories.length);
+      stories.push(story);
     } else {
       fail({
         code: "unknown-form",
@@ -481,7 +518,9 @@ export function compile(source: string): CompileResult {
   if (board === null && errors.length === 0) {
     fail({ code: "missing-board", message: 'Add a (board "Title" …) form to draw something.', span: { start: 0, end: 0 } });
   }
-  if (errors.length > 0 || board === null) return { board: null, diagnostics: errors };
-  board.stories = stories;
-  return { board, diagnostics: [] };
+  if (board !== null) board.stories = stories;
+  if (errors.length > 0 || board === null) {
+    return { ok: false, partial: board, incomplete: { places: incompletePlaces, stories: incompleteStories }, diagnostics: errors };
+  }
+  return { ok: true, board, diagnostics: [] };
 }

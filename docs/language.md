@@ -77,7 +77,7 @@ The wire leaves the screen at the height of its widget.
 
 ## Errors and gaps
 
-An **error** is malformed source, such as a missing parenthesis or an unknown widget. An error stops the render.
+An **error** is malformed source, such as a missing parenthesis or an unknown widget. An error stops the render. Jumper still checks the rest of the board, so you see its gaps with the errors. It does not report gaps about a place or story that lost content to an error, because those gaps would only repeat the error. A syntax error, such as a missing parenthesis, stops the checks too.
 
 A **gap** is a hole in the shaping work. The board still draws, and the gap is marked on it:
 

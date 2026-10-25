@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { examples } from "../src/examples.ts";
-import { analyse, applyEdits, build, compile, formatDiagnostic, positionAt, summarise } from "../src/index.ts";
+import { analyse, applyEdits, type Board, build, compile, formatDiagnostic, positionAt, summarise } from "../src/index.ts";
 
 const classic = `
 (board "Invoice autopay"
@@ -28,10 +28,10 @@ function messages(source: string): string[] {
   return result.diagnostics.map((diagnostic) => `${diagnostic.severity}: ${diagnostic.message}`);
 }
 
-function boardOf(source: string) {
-  const { board, diagnostics } = compile(source);
-  if (board === null) throw new Error(diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
-  return board;
+function boardOf(source: string): Board {
+  const compiled = compile(source);
+  if (!compiled.ok) throw new Error(compiled.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
+  return compiled.board;
 }
 
 describe("syntax", () => {
@@ -109,7 +109,7 @@ describe("gaps", () => {
       (screen :start "Start")
       (screen :x "X" (link "y" -> :y))
       (screen :y "Y" (link "x" -> :x)))`);
-    expect([...analyse(board).unreachable]).toEqual(["x", "y"]);
+    expect([...analyse({ board: board }).unreachable]).toEqual(["x", "y"]);
   });
 
   test("a place downstream of an orphan loop is unreachable, and the message does not say it is in the loop", () => {
@@ -119,18 +119,18 @@ describe("gaps", () => {
 
   test("every place with no incoming wire counts as an entry point", () => {
     const board = boardOf(`(board "A" (screen :a "A") (screen :b "B"))`);
-    expect(analyse(board).unreachable.size).toBe(0);
+    expect(analyse({ board: board }).unreachable.size).toBe(0);
   });
 });
 
 describe("stories", () => {
   test("a hop without :via is inferred when exactly one wire fits", () => {
     const board = boardOf(classic);
-    const [path] = analyse(board).stories;
+    const [path] = analyse({ board: board }).stories;
     expect(path?.hops.map((hop) => hop.kind)).toEqual(["explicit", "explicit", "explicit"]);
 
     const inferred = boardOf(classic.replace(':via "valid"', ""));
-    expect(analyse(inferred).stories[0]?.hops[2]?.kind).toBe("inferred");
+    expect(analyse({ board: inferred }).stories[0]?.hops[2]?.kind).toBe("inferred");
   });
 
   test("a hop with no wire behind it is a gap", () => {
@@ -185,7 +185,7 @@ describe("stories", () => {
 
   test(":touch highlights the named widget, and :via highlights the affordance", () => {
     const board = boardOf(classic);
-    expect(analyse(board).stories[0]?.highlights).toEqual([1, 0, 0, null]);
+    expect(analyse({ board: board }).stories[0]?.highlights).toEqual([1, 0, 0, null]);
   });
 });
 
@@ -384,5 +384,43 @@ describe("format", () => {
   test("the summary counts errors and gaps", () => {
     expect(summarise([])).toBe("No errors and no gaps.");
     expect(summarise(build({ source: `(board "A" (screen :a "A" (button "Go" -> :b) (link "X" -> :c)))` }).diagnostics)).toBe("2 gaps.");
+  });
+});
+
+describe("recovery", () => {
+  function codes(source: string): string[] {
+    return build({ source }).diagnostics.map((diagnostic) => diagnostic.code);
+  }
+
+  test("an error does not hide gaps in the rest of the board", () => {
+    const source = `(board "A" (screen :a "A" (sparkle "x")) (screen :b "B" (button "Go" -> :nowhere)))`;
+    expect(codes(source)).toEqual(["unknown-widget", "unknown-target"]);
+    expect(build({ source }).ok).toBe(false);
+  });
+
+  test("a story gap elsewhere is still reported", () => {
+    const source = `(board "A" (screen :a "A" (sparkle "x")) (screen :b "B") (screen :c "C"))
+      (story "S" (step :b "1") (step :c "2"))`;
+    expect(codes(source)).toEqual(["unknown-widget", "hop-without-wire"]);
+  });
+
+  test("a dropped widget does not echo as a :via gap", () => {
+    const source = `(board "A" (screen :a "A" (buton "Go" -> :b)) (screen :b "B")) (story "S" (step :a "1" :via "Go") (step :b "2"))`;
+    expect(codes(source)).toEqual(["unknown-widget"]);
+  });
+
+  test("a dropped place does not echo as an unknown target or step place", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :b)) (sceen :b "B")) (story "S" (step :a "1") (step :b "2"))`;
+    expect(codes(source)).toEqual(["unknown-form"]);
+  });
+
+  test("a dropped step does not echo as a hop gap", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :c)) (screen :b "B") (screen :c "C"))
+      (story "S" (step :a "1") (step "no id") (step :c "2"))`;
+    expect(codes(source)).toEqual(["missing-id"]);
+  });
+
+  test("a syntax error still stops everything, because the structure is unknown", () => {
+    expect(codes(`(board "A" (screen :a "A" (button "Go" -> :nowhere))`)).toEqual(["unclosed-list"]);
   });
 });

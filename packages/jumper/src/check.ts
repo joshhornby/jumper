@@ -1,3 +1,4 @@
+import type { Incomplete } from "./compile.ts";
 import { type Diagnostic, type DiagnosticInput, diagnostic, type Fix, type Span } from "./diagnostics.ts";
 import { type Board, type Place, type Widget, type Wire, wiresOf, wireText } from "./model.ts";
 import { quote } from "./reader.ts";
@@ -44,7 +45,13 @@ function findWidget({ place, text }: { place: Place; text: string }): number {
   return place.widgets.findIndex((widget: Widget) => same(wireText(widget), text));
 }
 
-export function analyse(board: Board): Analysis {
+const COMPLETE: Incomplete = { places: new Set(), stories: new Set() };
+
+/**
+ * Checks the board's wires and stories. Pass `incomplete` from a compile that had errors, so that
+ * gaps caused by the dropped content are not reported on top of the errors.
+ */
+export function analyse({ board, incomplete = COMPLETE }: { board: Board; incomplete?: Incomplete }): Analysis {
   const diagnostics: Diagnostic[] = [];
   const gap = (input: DiagnosticInput): void => {
     diagnostics.push(diagnostic(input));
@@ -67,6 +74,7 @@ export function analyse(board: Board): Analysis {
   wires.forEach((wire, index) => {
     if (!places.has(wire.to)) {
       danglingWires.add(index);
+      if (incomplete.places.has(wire.to)) return;
       gap({
         code: "unknown-target",
         message: `"${wire.affordance}" is wired to :${wire.to}, but no place has that id.`,
@@ -97,15 +105,24 @@ export function analyse(board: Board): Analysis {
   for (const place of board.places) {
     if (reached.has(place.id)) continue;
     unreachable.add(place.id);
+    // A dropped widget may have held the wire that reaches this place.
+    if (incomplete.places.size > 0) continue;
     gap({ code: "unreachable", message: `${place.title} is unreachable. No entry point leads to it.`, span: place.idSpan });
   }
 
-  const stories: StoryPath[] = board.stories.map((story) => {
+  const stories: StoryPath[] = board.stories.map((story, storyIndex) => {
     const hops: Hop[] = [];
     const highlights: (number | null)[] = [];
-    if (story.steps.length === 0) gap({ code: "empty-story", message: `The story "${story.title}" has no steps.`, span: story.span });
+    const storyIncomplete = incomplete.stories.has(storyIndex);
+    if (story.steps.length === 0 && !storyIncomplete)
+      gap({ code: "empty-story", message: `The story "${story.title}" has no steps.`, span: story.span });
 
     story.steps.forEach((step, index) => {
+      const after = story.steps[index + 1];
+      const quiet = storyIncomplete || incomplete.places.has(step.place) || (after !== undefined && incomplete.places.has(after.place));
+      const gap = (input: DiagnosticInput): void => {
+        if (!quiet) diagnostics.push(diagnostic(input));
+      };
       const place = places.get(step.place);
       if (place === undefined) {
         gap({
