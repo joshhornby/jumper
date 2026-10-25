@@ -1,0 +1,7 @@
+{
+  "extends": "@jumper/typescript-config/base.json",
+  "compilerOptions": {
+    "resolveJsonModule": true
+  },
+  "include": ["src", "test", "build.ts"]
+}

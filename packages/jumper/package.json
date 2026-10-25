@@ -7,9 +7,6 @@
     ".": "./src/index.ts",
     "./examples": "./src/examples.ts"
   },
-  "bin": {
-    "jumper": "./src/cli.ts"
-  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc -p ."

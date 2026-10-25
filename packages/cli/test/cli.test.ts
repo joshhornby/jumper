@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const CLI = join(import.meta.dir, "../src/cli.ts");
-const EXAMPLES = join(import.meta.dir, "../examples");
+const EXAMPLES = join(import.meta.dir, "../../jumper/examples");
 
 function run(args: string[]): { code: number; stdout: string; stderr: string } {
   const result = Bun.spawnSync(["bun", CLI, ...args], { env: { ...process.env, NO_COLOR: "1" } });
@@ -60,6 +60,12 @@ describe("cli", () => {
     expect(run(["fmt", file, "--check"]).code).toBe(1);
     expect(run(["fmt", file, "--write"]).code).toBe(0);
     expect(readFileSync(file, "utf8")).toBe(`(board "A"\n  (screen :a "A"\n    (text "x")))\n`);
+  });
+
+  test("--version prints the package version", () => {
+    const result = run(["--version"]);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   test("an unknown command prints the usage", () => {

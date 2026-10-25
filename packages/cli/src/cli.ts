@@ -1,15 +1,26 @@
-#!/usr/bin/env bun
+import { readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { describeDiff, diff } from "./diff.ts";
-import { formatDiagnostic, summarise } from "./format.ts";
-import { type BuildResult, build, type Diagnostic, formatSource, positionAt, scenarios } from "./index.ts";
+import {
+  type BuildResult,
+  build,
+  type Diagnostic,
+  describeDiff,
+  diff,
+  formatDiagnostic,
+  formatSource,
+  positionAt,
+  scenarios,
+  summarise,
+} from "@jumper/lang";
+import { version } from "../package.json" with { type: "json" };
 
 const USAGE = `Usage:
   jumper check <file.jumper> [--json]
   jumper build <file.jumper> [-o out.svg] [--breadboard] [--no-notes] [--story <n>]
   jumper fmt <file.jumper> [--write | --check]
   jumper diff <before.jumper> <after.jumper> [--json]
-  jumper scenarios <file.jumper>`;
+  jumper scenarios <file.jumper>
+  jumper --version`;
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -21,6 +32,8 @@ const { positionals, values } = parseArgs({
     json: { type: "boolean", default: false },
     write: { type: "boolean", default: false },
     check: { type: "boolean", default: false },
+    version: { type: "boolean", short: "v", default: false },
+    help: { type: "boolean", short: "h", default: false },
   },
 });
 
@@ -46,12 +59,12 @@ function json({ file, source, result }: { file: string; source: string; result: 
 }
 
 async function load(file: string): Promise<string> {
-  const input = Bun.file(file);
-  if (!(await input.exists())) {
+  try {
+    return await readFile(file, "utf8");
+  } catch {
     process.stderr.write(`I cannot find the file ${file}.\n`);
     process.exit(2);
   }
-  return input.text();
 }
 
 async function check([file]: string[]): Promise<number> {
@@ -79,7 +92,7 @@ async function buildSvg([file]: string[]): Promise<number> {
   report({ file, source, diagnostics: result.diagnostics });
   if (!result.ok) return 1;
   if (values.out === undefined) process.stdout.write(result.svg);
-  else await Bun.write(values.out, result.svg);
+  else await writeFile(values.out, result.svg);
   return 0;
 }
 
@@ -97,7 +110,7 @@ async function fmt([file]: string[]): Promise<number> {
     return 1;
   }
   if (values.write) {
-    if (result.text !== source) await Bun.write(file, result.text);
+    if (result.text !== source) await writeFile(file, result.text);
     return 0;
   }
   process.stdout.write(result.text);
@@ -148,4 +161,10 @@ const COMMANDS: Record<string, (files: string[]) => Promise<number>> = {
 const [command = "", ...files] = positionals;
 const run = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
 // Set the code instead of calling exit, so that a large SVG on stdout is not cut short.
-process.exitCode = run === undefined ? usage() : await run(files);
+if (values.version) {
+  process.stdout.write(`${version}\n`);
+} else if (values.help) {
+  process.stdout.write(`${USAGE}\n`);
+} else {
+  process.exitCode = run === undefined ? usage() : await run(files);
+}
