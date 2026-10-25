@@ -1,4 +1,4 @@
-import { type BuildResult, build, type Diagnostic, type Fidelity, positionAt } from "@jumper/lang";
+import { type BuildResult, build, type Diagnostic, type Fidelity, formatSource, positionAt } from "@jumper/lang";
 import { examples } from "@jumper/lang/examples";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Editor, type EditorHandle } from "./Editor.tsx";
@@ -97,6 +97,20 @@ export function App() {
     }
   };
 
+  // The editor applies the new text as one change, so one undo restores the old layout.
+  const format = (text: string = source): void => {
+    const formatted = formatSource(text);
+    if (!formatted.ok) {
+      setToast("Fix the syntax error first, then format.");
+      return;
+    }
+    if (formatted.text === text) {
+      setToast("Already formatted.");
+      return;
+    }
+    setSource(formatted.text);
+  };
+
   const share = async (): Promise<void> => {
     const hash = await shareHash(source);
     await copyText({ text: `${window.location.origin}${window.location.pathname}${hash}`, done: "Share link copied." });
@@ -167,6 +181,9 @@ export function App() {
           Notes
         </label>
         <div className="spacer" />
+        <button type="button" className="button" onClick={() => format()} title="Format the source (Shift+Alt+F)">
+          Format
+        </button>
         <button type="button" className="button" onClick={() => void share()}>
           Share
         </button>
@@ -195,7 +212,7 @@ export function App() {
 
       <main className={`workspace${showSource ? "" : " no-source"}${showSide ? "" : " no-side"}`}>
         <section className="pane source-pane" aria-label="Source" hidden={!showSource}>
-          <Editor ref={editor} value={source} onChange={setSource} diagnostics={result.diagnostics} placeIds={placeIds} />
+          <Editor ref={editor} value={source} onChange={setSource} onFormat={format} diagnostics={result.diagnostics} placeIds={placeIds} />
         </section>
 
         <section className="pane preview-pane" aria-label="Board">

@@ -1,8 +1,8 @@
 import { autocompletion } from "@codemirror/autocomplete";
 import { syntaxHighlighting } from "@codemirror/language";
 import { type Diagnostic as LintDiagnostic, lintGutter, setDiagnostics } from "@codemirror/lint";
-import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorState, Prec } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
 import type { Diagnostic } from "@jumper/lang";
 import { basicSetup } from "codemirror";
 import { useEffect, useImperativeHandle, useRef } from "react";
@@ -13,6 +13,8 @@ export type EditorHandle = { reveal: (offset: number) => void };
 type EditorProps = {
   value: string;
   onChange: (value: string) => void;
+  /** Receives the editor's text, which can be ahead of `value` straight after a key press. */
+  onFormat: (text: string) => void;
   diagnostics: readonly Diagnostic[];
   placeIds: readonly string[];
   ref: React.Ref<EditorHandle>;
@@ -28,11 +30,11 @@ const theme = EditorView.theme({
   ".cm-tooltip": { backgroundColor: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" },
 });
 
-export function Editor({ value, onChange, diagnostics, placeIds, ref }: EditorProps) {
+export function Editor({ value, onChange, onFormat, diagnostics, placeIds, ref }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const latest = useRef({ onChange, placeIds });
-  latest.current = { onChange, placeIds };
+  const latest = useRef({ onChange, onFormat, placeIds });
+  latest.current = { onChange, onFormat, placeIds };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the view is created once. The next effect syncs later changes to `value`.
   useEffect(() => {
@@ -42,6 +44,17 @@ export function Editor({ value, onChange, diagnostics, placeIds, ref }: EditorPr
       state: EditorState.create({
         doc: value,
         extensions: [
+          Prec.high(
+            keymap.of([
+              {
+                key: "Shift-Alt-f",
+                run: (target) => {
+                  latest.current.onFormat(target.state.doc.toString());
+                  return true;
+                },
+              },
+            ]),
+          ),
           basicSetup,
           jumperLanguage,
           syntaxHighlighting(jumperHighlight),
