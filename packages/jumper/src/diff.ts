@@ -1,7 +1,5 @@
-import type { Analysis } from "./check.ts";
-import type { Board, Story } from "./model.ts";
-
-export type Analysed = { board: Board; analysis: Analysis };
+import type { Analysed } from "./check.ts";
+import type { Story } from "./model.ts";
 
 export type Retarget = { key: string; before: string; after: string };
 

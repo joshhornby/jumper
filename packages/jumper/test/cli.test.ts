@@ -78,4 +78,12 @@ describe("cli", () => {
     expect(result.stdout).toContain(':a "Go" now leads to :c, not :b');
     expect(JSON.parse(run(["diff", before, after, "--json"]).stdout)).toMatchObject({ wires: { retargeted: [{ key: ':a "Go"' }] } });
   });
+  test("scenarios prints one scenario for each story as JSON", () => {
+    const result = run(["scenarios", join(EXAMPLES, "autopay.jumper")]);
+    const parsed: unknown = JSON.parse(result.stdout);
+    expect(parsed).toMatchObject([
+      { story: "Client turns on autopay", runnable: true },
+      { story: "Card is declined", runnable: true },
+    ]);
+  });
 });

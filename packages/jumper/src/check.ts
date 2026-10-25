@@ -43,6 +43,9 @@ function findWidget({ place, text }: { place: Place; text: string }): number {
   return place.widgets.findIndex((widget: Widget) => wireText(widget) === text);
 }
 
+/** A board with its analysis: what diff and scenarios work from. */
+export type Analysed = { board: Board; analysis: Analysis };
+
 const COMPLETE: Incomplete = { places: new Set(), stories: new Set() };
 
 /**

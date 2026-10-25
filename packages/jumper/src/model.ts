@@ -126,6 +126,35 @@ export function wireText(widget: Widget): string {
   }
 }
 
+/**
+ * True for widgets a person or the system acts on: the ones that carry behaviour.
+ * The others describe what a place shows. Behaviour tools, such as test generation, need only the first kind.
+ */
+export function isAffordance(widget: Widget): boolean {
+  switch (widget.type) {
+    case "field":
+    case "button":
+    case "primary":
+    case "link":
+    case "check":
+    case "slot":
+    case "out":
+    case "to":
+      return true;
+    case "title":
+    case "text":
+    case "meta":
+    case "image":
+    case "post":
+    case "list":
+    case "columns":
+    case "divider":
+      return widget.wire !== null;
+    default:
+      return unreachable(widget);
+  }
+}
+
 /** Fails to compile when a switch misses a case, so a new widget type cannot be forgotten. */
 export function unreachable(value: never): never {
   throw new Error(`Unhandled value: ${JSON.stringify(value)}`);

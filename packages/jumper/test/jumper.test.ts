@@ -10,6 +10,7 @@ import {
   formatDiagnostic,
   formatSource,
   positionAt,
+  scenarios,
   summarise,
 } from "../src/index.ts";
 
@@ -579,5 +580,61 @@ describe("diff", () => {
     const change = diff({ before: analysed(base), after: analysed(after) });
     expect(change.stories.changed).toEqual(["Looks"]);
     expect(change.affected).toEqual(["Looks"]);
+  });
+});
+
+describe("scenarios", () => {
+  test("a story becomes steps with an actor, an affordance and the place to expect", () => {
+    const result = build({ source: classic });
+    if (!result.ok) throw new Error("did not compile");
+    const [scenario] = scenarios(result);
+    expect(scenario).toEqual({
+      story: "Client turns on autopay",
+      runnable: true,
+      steps: [
+        {
+          place: "invoice",
+          kind: "screen",
+          title: "Invoice",
+          caption: "Opens overdue invoice",
+          touch: null,
+          action: { actor: "user", affordance: "Turn on Autopay", wire: ':invoice "Turn on Autopay"', inferred: false },
+          expect: "setup",
+        },
+        {
+          place: "setup",
+          kind: "screen",
+          title: "Setup Autopay",
+          caption: "Enters card once",
+          touch: { text: "CC fields", widget: "field", interactive: true },
+          action: { actor: "user", affordance: "Submit", wire: ':setup "Submit"', inferred: false },
+          expect: "save-card",
+        },
+        {
+          place: "save-card",
+          kind: "system",
+          title: "Save card",
+          caption: "Card verified",
+          touch: null,
+          action: { actor: "system", affordance: "valid", wire: ':save-card "valid"', inferred: false },
+          expect: "confirm",
+        },
+        {
+          place: "confirm",
+          kind: "screen",
+          title: "Confirmation",
+          caption: "Future invoices pay themselves",
+          touch: null,
+          action: null,
+          expect: null,
+        },
+      ],
+    });
+  });
+
+  test("a story with a missing hop is not runnable", () => {
+    const result = build({ source: `(board "A" (screen :a "A") (screen :b "B")) (story "S" (step :a "1") (step :b "2"))` });
+    if (!result.ok) throw new Error("did not compile");
+    expect(scenarios(result)[0]?.runnable).toBe(false);
   });
 });

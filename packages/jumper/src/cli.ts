@@ -2,13 +2,14 @@
 import { parseArgs } from "node:util";
 import { describeDiff, diff } from "./diff.ts";
 import { formatDiagnostic, summarise } from "./format.ts";
-import { type BuildResult, build, type Diagnostic, formatSource, positionAt } from "./index.ts";
+import { type BuildResult, build, type Diagnostic, formatSource, positionAt, scenarios } from "./index.ts";
 
 const USAGE = `Usage:
   jumper check <file.jumper> [--json]
   jumper build <file.jumper> [-o out.svg] [--breadboard] [--no-notes] [--story <n>]
   jumper fmt <file.jumper> [--write | --check]
-  jumper diff <before.jumper> <after.jumper> [--json]`;
+  jumper diff <before.jumper> <after.jumper> [--json]
+  jumper scenarios <file.jumper>`;
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -121,12 +122,28 @@ async function difference([first, second]: string[]): Promise<number> {
   return 0;
 }
 
+async function scenarioList([file]: string[]): Promise<number> {
+  if (file === undefined) return usage();
+  const source = await load(file);
+  const result = build({ source });
+  report({ file, source, diagnostics: result.diagnostics });
+  if (!result.ok) return 1;
+  process.stdout.write(`${JSON.stringify(scenarios(result), null, 2)}\n`);
+  return 0;
+}
+
 function usage(): number {
   process.stderr.write(`${USAGE}\n`);
   return 2;
 }
 
-const COMMANDS: Record<string, (files: string[]) => Promise<number>> = { check, build: buildSvg, fmt, diff: difference };
+const COMMANDS: Record<string, (files: string[]) => Promise<number>> = {
+  check,
+  build: buildSvg,
+  fmt,
+  diff: difference,
+  scenarios: scenarioList,
+};
 
 const [command = "", ...files] = positionals;
 const run = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;

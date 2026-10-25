@@ -6,16 +6,18 @@ import { read } from "./reader.ts";
 import { render } from "./render.ts";
 import type { Fidelity } from "./shapes.ts";
 
-export type { Analysis, Hop, StoryPath } from "./check.ts";
+export type { Analysed, Analysis, Hop, StoryPath } from "./check.ts";
 export type { CompileResult, Incomplete } from "./compile.ts";
 export type { Diagnostic, DiagnosticCode, Edit, Fix, Position, Related, Severity, Span } from "./diagnostics.ts";
 export { applyEdits, positionAt } from "./diagnostics.ts";
-export { type Analysed, type BoardDiff, describeDiff, diff, type Retarget } from "./diff.ts";
+export { type BoardDiff, describeDiff, diff, type Retarget } from "./diff.ts";
 export { formatDiagnostic, summarise } from "./format.ts";
-export type { Board, Place, PlaceKind, Region, Step, Story, Widget, Wire } from "./model.ts";
+export type { Board, Place, PlaceKind, Region, Step, StepOption, Story, Widget, WidgetType, Wire } from "./model.ts";
+export { isAffordance } from "./model.ts";
 export { type FormatResult, formatSource } from "./print.ts";
 export type { Comment, Expr } from "./reader.ts";
 export type { Rendered, RenderOptions } from "./render.ts";
+export { type Actor, type Scenario, type ScenarioStep, scenarios } from "./scenarios.ts";
 export type { Fidelity } from "./shapes.ts";
 export { analyse, compile, read, render };
 
