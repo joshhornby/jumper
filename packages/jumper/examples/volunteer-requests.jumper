@@ -3,7 +3,7 @@
   (region "Post a request" "Can a coordinator post a request in under a minute?"
     (screen :requests "Requests"
       (title "Requests")
-      (board
+      (columns
         (col "Open" "Drivers for Sat" "Kitchen help")
         (col "Filled" "Stewards")
         (col "Closed"))

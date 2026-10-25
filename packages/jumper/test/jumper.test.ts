@@ -91,6 +91,22 @@ describe("forms", () => {
     ]);
   });
 
+  test("(to …) has one spelling, and the arrow spelling is fixed to it", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :d)) (decision :d "Ok?" (to "yes" -> :a) (to :a "no")))`;
+    const [first] = build({ source }).diagnostics;
+    expect(first?.code).toBe("missing-target");
+    expect(first?.fix?.edit?.text).toBe('(to :a "yes")');
+  });
+
+  test("(board …) inside a place is fixed to (columns …)", () => {
+    const [first] = build({ source: `(board "A" (screen :a "A" (board (col "Open"))))` }).diagnostics;
+    expect(first?.fix?.edit?.text).toBe("columns");
+  });
+
+  test("a comma is not whitespace", () => {
+    expect(build({ source: `(board "A" (screen :a "A" (list "x", "y")))` }).diagnostics[0]?.code).toBe("not-a-string");
+  });
+
   test("a wire can carry a label", () => {
     const board = boardOf(`(board "A" (screen :a "A" (slot "On" -> :b "on due date")) (system :b "B"))`);
     expect(board.places[0]?.widgets[0]?.wire).toMatchObject({ target: "b", label: "on due date" });

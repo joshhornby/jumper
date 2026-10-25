@@ -28,11 +28,11 @@ See [docs/language.md](docs/language.md) for the full language.
 
 ## Layout
 
-| Path | Contents |
-| --- | --- |
-| `packages/jumper` | The language: reader, compiler, checker, SVG renderer and CLI |
-| `apps/playground` | The browser playground: editor, live board, stories and problems |
-| `packages/typescript-config` | Strict TypeScript config, copied from Anvil |
+| Path                         | Contents                                                         |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `packages/jumper`            | The language: reader, compiler, checker, SVG renderer and CLI    |
+| `apps/playground`            | The browser playground: editor, live board, stories and problems |
+| `packages/typescript-config` | Strict TypeScript config, copied from Anvil                      |
 
 ## Use it
 

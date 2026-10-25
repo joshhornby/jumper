@@ -1,6 +1,6 @@
 import { type Diagnostic, type DiagnosticInput, diagnostic, type Fix, type Span } from "./diagnostics.ts";
 import type { Board, Column, Note, Place, PlaceKind, Region, Step, Story, Widget, WireRef } from "./model.ts";
-import { type Expr, read } from "./reader.ts";
+import { type Expr, quote, read } from "./reader.ts";
 import { closest } from "./suggest.ts";
 
 /**
@@ -61,7 +61,7 @@ function branchHint(type: "out" | "to"): string {
     : "Use (to …) inside a decision. On a screen, wire a button or link instead.";
 }
 
-const WIDGET_NAMES = [...TEXT_WIDGETS.keys(), "to", "board", "columns", "divider", "list", "post", "note", "question"];
+const WIDGET_NAMES = [...TEXT_WIDGETS.keys(), "to", "columns", "divider", "list", "post", "note", "question"];
 const BOARD_FORMS = [...PLACE_FORMS.keys(), "region"];
 const TOP_FORMS = ["board", "story"];
 
@@ -168,10 +168,10 @@ export function compile(source: string): CompileResult {
   const readColumns = (form: ListExpr): Column[] | null => {
     const columns: Column[] = [];
     for (const item of form.items.slice(1)) {
-      const col = expectList(item, "inside a board widget");
+      const col = expectList(item, "inside (columns …)");
       if (col === null) return null;
       if (headOf(col) !== "col") {
-        fail({ code: "bad-columns", message: 'A board widget holds only (col "Title" "card" …) forms.', span: col.span });
+        fail({ code: "bad-columns", message: '(columns …) holds only (col "Title" "card" …) forms.', span: col.span });
         return null;
       }
       const strings = stringsOf({ args: col.items.slice(1), form: col, min: 1, max: Number.POSITIVE_INFINITY });
@@ -205,18 +205,32 @@ export function compile(source: string): CompileResult {
           span: form.span,
         };
       }
-      const { args, wire, ok } = splitArrow(form);
-      if (!ok) return null;
-      const strings = stringsOf({ args, form, min: 1, max: 1 });
-      if (strings === null) return null;
-      if (wire === null) {
-        fail({ code: "missing-target", message: '(to …) needs a target: (to :id "condition").', span: form.span });
-        return null;
-      }
-      return { type: "to", text: strings[0] ?? "", wire, span: form.span };
+      // (to "condition" -> :id) reads like other wires, so it is a likely slip. One spelling keeps the language small.
+      const [, arrow, target, ...tail] = form.items.slice(1);
+      const swapped =
+        first?.kind === "string" && arrow?.kind === "symbol" && arrow.name === "->" && target?.kind === "keyword" && tail.length === 0;
+      fail({
+        code: "missing-target",
+        message: '(to …) takes the id first, then the condition: (to :id "condition").',
+        span: form.span,
+        fix: swapped
+          ? { message: "Put the id first.", edit: { span: form.span, text: `(to :${target.name} ${quote(first.value)})` } }
+          : null,
+      });
+      return null;
     }
 
-    if (name === "board" || name === "columns") {
+    if (name === "board") {
+      fail({
+        code: "unknown-widget",
+        message: "Inside a place, write (columns (col …)). (board …) is only the top-level form.",
+        span: form.items[0]?.span ?? form.span,
+        fix: { message: "Did you mean (columns …)?", edit: { span: form.items[0]?.span ?? form.span, text: "columns" } },
+      });
+      return null;
+    }
+
+    if (name === "columns") {
       const columns = readColumns(form);
       return columns === null ? null : { type: "columns", columns, wire: null, span: form.span };
     }

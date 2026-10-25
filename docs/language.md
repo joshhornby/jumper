@@ -19,36 +19,36 @@ Regions are numbered from 1 in source order. The question is optional. Places ou
 
 Every place has an id (a `:keyword`) and a title.
 
-| Form | Drawn as | Holds |
-| --- | --- | --- |
-| `(screen :id "Title" …)` | A wireframe screen | Widgets, notes, questions |
-| `(place :id "Title" …)` | Same as `screen` | Same as `screen`. Use it for the original Shape Up style. |
-| `(slot :id "Title" …)` | A dotted screen: UI that is not designed yet | Widgets, notes, questions |
-| `(system :id "Title" …)` | A dashed box: code the user does not see | `(out …)`, `(text …)`, notes, questions |
-| `(decision :id "Question?" …)` | A green diamond | `(to …)`, notes, questions |
+| Form                           | Drawn as                                     | Holds                                                     |
+| ------------------------------ | -------------------------------------------- | --------------------------------------------------------- |
+| `(screen :id "Title" …)`       | A wireframe screen                           | Widgets, notes, questions                                 |
+| `(place :id "Title" …)`        | Same as `screen`                             | Same as `screen`. Use it for the original Shape Up style. |
+| `(slot :id "Title" …)`         | A dotted screen: UI that is not designed yet | Widgets, notes, questions                                 |
+| `(system :id "Title" …)`       | A dashed box: code the user does not see     | `(out …)`, `(text …)`, notes, questions                   |
+| `(decision :id "Question?" …)` | A green diamond                              | `(to …)`, notes, questions                                |
 
 ## Widgets
 
-| Form | Drawn as |
-| --- | --- |
-| `(title "text")` | Bold heading |
-| `(text "text")`, `(info "text")` | Body text |
-| `(meta "text")` | Small grey text |
-| `(field "label")` | Input box |
-| `(button "label")` | Outlined button |
-| `(primary "label")` | Green button |
-| `(link "label")` | Underlined link |
-| `(check "label")` | Checkbox |
-| `(slot "label")` | Dotted placeholder inside a screen |
-| `(image "alt text")` | Image box |
-| `(post "Author" "body")` | A message with an avatar. The author is optional. |
-| `(list "item" "item" …)` | Rows |
-| `(columns (col "Title" "card" …) …)` | Kanban columns. `(board (col …))` inside a screen also works. |
-| `(divider)` | Horizontal rule |
-| `(out "label" -> :id)` | A branch out of a system place |
-| `(to :id "condition")` | A branch out of a decision |
-| `(note "text")` | Grey note under the place |
-| `(question "text")` | Red open question under the place |
+| Form                                 | Drawn as                                          |
+| ------------------------------------ | ------------------------------------------------- |
+| `(title "text")`                     | Bold heading                                      |
+| `(text "text")`, `(info "text")`     | Body text                                         |
+| `(meta "text")`                      | Small grey text                                   |
+| `(field "label")`                    | Input box                                         |
+| `(button "label")`                   | Outlined button                                   |
+| `(primary "label")`                  | Green button                                      |
+| `(link "label")`                     | Underlined link                                   |
+| `(check "label")`                    | Checkbox                                          |
+| `(slot "label")`                     | Dotted placeholder inside a screen                |
+| `(image "alt text")`                 | Image box                                         |
+| `(post "Author" "body")`             | A message with an avatar. The author is optional. |
+| `(list "item" "item" …)`             | Rows                                              |
+| `(columns (col "Title" "card" …) …)` | Kanban columns                                    |
+| `(divider)`                          | Horizontal rule                                   |
+| `(out "label" -> :id)`               | A branch out of a system place                    |
+| `(to :id "condition")`               | A branch out of a decision                        |
+| `(note "text")`                      | Grey note under the place                         |
+| `(question "text")`                  | Red open question under the place                 |
 
 ## Wires
 

@@ -21,7 +21,7 @@ class SyntaxFault extends Error {
 const DELIMITERS = new Set(["(", ")", '"', ";"]);
 
 function isSpace(char: string): boolean {
-  return char === " " || char === "\n" || char === "\t" || char === "\r" || char === ",";
+  return char === " " || char === "\n" || char === "\t" || char === "\r";
 }
 
 export function read(source: string): ReadResult {
