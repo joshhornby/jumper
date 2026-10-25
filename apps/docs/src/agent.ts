@@ -31,7 +31,7 @@ function llmsTxt(base: string): string {
 
 /**
  * The files for agents, by path: one Markdown file for each page, `llms.txt` and `llms-full.txt`.
- * `base` is the site's public URL, such as `https://joshhornby.github.io/jumper/`, so links work outside the site.
+ * `base` is the site's public URL, such as `https://jumper.joshhornby.com/`, so links work outside the site.
  */
 export function agentFiles({ base, contentDir = CONTENT_DIR }: { base: string; contentDir?: string }): Map<string, string> {
   const files = new Map<string, string>();

@@ -6,11 +6,11 @@ Jumper suits coding agents well. The source is plain text, every problem has a s
 
 These docs are available as Markdown for agents:
 
-| URL                                                                  | Contents                                                                                    |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [`llms.txt`](https://joshhornby.github.io/jumper/llms.txt)           | An index of every page, with a one-line description of each.                                |
-| [`llms-full.txt`](https://joshhornby.github.io/jumper/llms-full.txt) | Every page in one file.                                                                     |
-| `<page>.md`                                                          | One page as Markdown, such as [`syntax.md`](https://joshhornby.github.io/jumper/syntax.md). |
+| URL                                                            | Contents                                                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [`llms.txt`](https://jumper.joshhornby.com/llms.txt)           | An index of every page, with a one-line description of each.                          |
+| [`llms-full.txt`](https://jumper.joshhornby.com/llms-full.txt) | Every page in one file.                                                               |
+| `<page>.md`                                                    | One page as Markdown, such as [`syntax.md`](https://jumper.joshhornby.com/syntax.md). |
 
 In the Markdown, every generated output is written out in full. For example, each example in the [Diagnostic reference](diagnostics.md) is followed by the exact text that `jumper check` prints for it. The **Copy as Markdown** button at the top of each page copies the same text.
 
@@ -69,7 +69,7 @@ This is the diagnostic for the [`unknown-via`](diagnostics.md#unknown-via) examp
 ## Example prompt
 
 ```text
-Read https://joshhornby.github.io/jumper/llms.txt and the pages it links for syntax, widgets and stories.
+Read https://jumper.joshhornby.com/llms.txt and the pages it links for syntax, widgets and stories.
 Write a Jumper board for <feature> in <file>.jumper, with one region for each design question
 and a story for the main path and each important branch.
 Run `jumper check <file>.jumper --json` and fix every diagnostic until it exits with 0.

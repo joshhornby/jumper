@@ -1,6 +1,6 @@
 # jumper-cli
 
-The `jumper` command for [Jumper](https://joshhornby.github.io/jumper/), a small language for user flows and wireframes. Write a board as text. Jumper draws it as SVG and checks that every story follows a real wire.
+The `jumper` command for [Jumper](https://jumper.joshhornby.com/), a small language for user flows and wireframes. Write a board as text. Jumper draws it as SVG and checks that every story follows a real wire.
 
 ```sh
 npm install --global jumper-cli
@@ -16,8 +16,8 @@ jumper diff before.jumper after.jumper     # compare two versions by meaning
 jumper scenarios board.jumper              # turn each story into a test scenario
 ```
 
-- [Documentation](https://joshhornby.github.io/jumper/)
-- [CLI reference](https://joshhornby.github.io/jumper/cli)
-- [Playground](https://joshhornby.github.io/jumper/playground/)
+- [Documentation](https://jumper.joshhornby.com/)
+- [CLI reference](https://jumper.joshhornby.com/cli)
+- [Playground](https://jumper.joshhornby.com/playground/)
 
 MIT licence.

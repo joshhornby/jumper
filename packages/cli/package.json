@@ -4,7 +4,7 @@
   "description": "Check, draw, format and compare Jumper breadboards from the command line.",
   "license": "MIT",
   "author": "Josh Hornby",
-  "homepage": "https://joshhornby.github.io/jumper/",
+  "homepage": "https://jumper.joshhornby.com/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/joshhornby/jumper.git",

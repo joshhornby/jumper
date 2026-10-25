@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 /**
  * Builds the GitHub Pages site: the docs at the root and the playground at `playground/`.
- * The output is apps/docs/dist. Set DOCS_BASE and DOCS_URL to deploy somewhere other than joshhornby.github.io/jumper.
+ * The output is apps/docs/dist. Set DOCS_BASE and DOCS_URL to deploy somewhere other than jumper.joshhornby.com.
  */
 const root = join(import.meta.dir, "..");
 const docs = join(root, "apps/docs/dist");

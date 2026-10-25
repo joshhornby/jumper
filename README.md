@@ -24,7 +24,7 @@ Jumper is a small language for user flows and wireframes. It grew out of breadbo
   (step :confirm "Future invoices pay themselves"))
 ```
 
-Read the documentation at **https://joshhornby.github.io/jumper/**, or try Jumper in the [playground](https://joshhornby.github.io/jumper/playground/). Agents can start from [llms.txt](https://joshhornby.github.io/jumper/llms.txt).
+Read the documentation at **https://jumper.joshhornby.com/**, or try Jumper in the [playground](https://jumper.joshhornby.com/playground/). Agents can start from [llms.txt](https://jumper.joshhornby.com/llms.txt).
 
 ## Install the CLI
 
@@ -42,7 +42,7 @@ jumper diff before.jumper after.jumper     # compare two versions by meaning
 jumper scenarios board.jumper              # turn each story into a test scenario
 ```
 
-See the [CLI reference](https://joshhornby.github.io/jumper/cli) for every option and exit code.
+See the [CLI reference](https://jumper.joshhornby.com/cli) for every option and exit code.
 
 ## Layout
 
@@ -64,7 +64,7 @@ bun install
 
 ```sh
 bun run dev         # playground at http://localhost:3000
-bun run docs        # docs at http://localhost:5173/jumper/
+bun run docs        # docs at http://localhost:5173/
 bun test            # all tests
 bun run typecheck   # all packages
 bun run check       # Biome format and lint

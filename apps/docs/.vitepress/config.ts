@@ -5,8 +5,8 @@ import { agentFiles } from "../src/agent.ts";
 import { parseInfo, renderJumper } from "../src/markdown.ts";
 import { pages, sections } from "../src/pages.ts";
 
-const base = process.env["DOCS_BASE"] ?? "/jumper/";
-const siteUrl = process.env["DOCS_URL"] ?? "https://joshhornby.github.io/jumper/";
+const base = process.env["DOCS_BASE"] ?? "/";
+const siteUrl = process.env["DOCS_URL"] ?? "https://jumper.joshhornby.com/";
 const dev = process.argv.includes("dev");
 // In production the playground is deployed inside the docs. In dev it runs on its own server.
 const playgroundEnv = process.env["JUMPER_PLAYGROUND_URL"] ?? (dev ? "http://localhost:3000/" : undefined);
