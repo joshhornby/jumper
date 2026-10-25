@@ -1,6 +1,7 @@
-import { type Diagnostic, type DiagnosticCode, diagnostic, type Span } from "./diagnostics.ts";
+import { type Diagnostic, type DiagnosticInput, diagnostic, type Fix, type Span } from "./diagnostics.ts";
 import type { Board, Column, Note, Place, PlaceKind, Region, Step, Story, Widget, WireRef } from "./model.ts";
 import { type Expr, read } from "./reader.ts";
+import { closest } from "./suggest.ts";
 
 export type CompileResult = { board: Board | null; diagnostics: Diagnostic[] };
 
@@ -48,6 +49,17 @@ function branchHint(type: "out" | "to"): string {
     : "Use (to …) inside a decision. On a screen, wire a button or link instead.";
 }
 
+const WIDGET_NAMES = [...TEXT_WIDGETS.keys(), "to", "board", "columns", "divider", "list", "post", "note", "question"];
+const BOARD_FORMS = [...PLACE_FORMS.keys(), "region"];
+const TOP_FORMS = ["board", "story"];
+
+/** Suggests the form name that `head` most likely misspells, with an edit that replaces just the name. */
+function nameFix({ head, candidates }: { head: Expr | undefined; candidates: readonly string[] }): Fix | null {
+  if (head?.kind !== "symbol") return null;
+  const match = closest({ word: head.name, candidates });
+  return match === null ? null : { message: `Did you mean (${match} …)?`, edit: { span: head.span, text: match } };
+}
+
 function headOf(list: ListExpr): string | null {
   const head = list.items[0];
   return head?.kind === "symbol" ? head.name : null;
@@ -58,8 +70,8 @@ export function compile(source: string): CompileResult {
   if (diagnostics.length > 0) return { board: null, diagnostics };
 
   const errors: Diagnostic[] = [];
-  const fail = ({ code, message, span }: { code: DiagnosticCode; message: string; span: Span }): void => {
-    errors.push(diagnostic({ code, message, span }));
+  const fail = (input: DiagnosticInput): void => {
+    errors.push(diagnostic(input));
   };
 
   const expectList = (expr: Expr, context: string): ListExpr | null => {
@@ -77,7 +89,15 @@ export function compile(source: string): CompileResult {
   const readWire = ({ rest, form }: { rest: Expr[]; form: ListExpr }): WireRef | null => {
     const [target, label, ...extra] = rest;
     if (target?.kind !== "keyword") {
-      fail({ code: "expected-target", message: "Expected a :place-id after ->.", span: target?.span ?? form.span });
+      fail({
+        code: "expected-target",
+        message: "Expected a :place-id after ->.",
+        span: target?.span ?? form.span,
+        fix:
+          target?.kind === "symbol"
+            ? { message: `Write the id with a colon: :${target.name}`, edit: { span: target.span, text: `:${target.name}` } }
+            : null,
+      });
       return null;
     }
     if (label !== undefined && label.kind !== "string") {
@@ -109,6 +129,16 @@ export function compile(source: string): CompileResult {
     const name = headOf(form) ?? "form";
     const strings: string[] = [];
     for (const arg of args) {
+      if (arg.kind === "symbol" && arg.name.startsWith("->") && arg.name.length > 2) {
+        const target = arg.name.slice(2);
+        fail({
+          code: "arrow-needs-space",
+          message: "Put a space after ->, so Jumper reads the arrow and the id apart.",
+          span: arg.span,
+          fix: { message: `Write -> ${target}`, edit: { span: arg.span, text: `-> ${target}` } },
+        });
+        return null;
+      }
       if (arg.kind !== "string") {
         fail({ code: "not-a-string", message: `(${name} …) takes only "strings" here.`, span: arg.span });
         return null;
@@ -207,7 +237,12 @@ export function compile(source: string): CompileResult {
       return { type, text: strings[0] ?? "", wire, span: form.span };
     }
 
-    fail({ code: "unknown-widget", message: `Unknown widget (${name} …).`, span: form.items[0]?.span ?? form.span });
+    fail({
+      code: "unknown-widget",
+      message: `Unknown widget (${name} …).`,
+      span: form.items[0]?.span ?? form.span,
+      fix: nameFix({ head: form.items[0], candidates: WIDGET_NAMES }),
+    });
     return null;
   };
 
@@ -272,10 +307,15 @@ export function compile(source: string): CompileResult {
       const key = rest[index];
       const value = rest[index + 1];
       if (key?.kind !== "keyword" || (key.name !== "via" && key.name !== "touch")) {
+        const match = key?.kind === "keyword" ? closest({ word: key.name, candidates: ["via", "touch"] }) : null;
         fail({
           code: "bad-step-option",
           message: 'A step takes a caption, then :via "Affordance" and :touch "Widget".',
           span: key?.span ?? form.span,
+          fix:
+            match === null || key === undefined
+              ? null
+              : { message: `Did you mean :${match}?`, edit: { span: key.span, text: `:${match}` } },
         });
         return null;
       }
@@ -283,11 +323,18 @@ export function compile(source: string): CompileResult {
         fail({ code: "missing-option-value", message: `:${key.name} needs a "string".`, span: value?.span ?? key.span });
         return null;
       }
-      if (step[key.name] !== null) {
-        fail({ code: "duplicate-option", message: `This step already has :${key.name}. A step takes it once.`, span: key.span });
+      const existing = step[key.name];
+      if (existing !== null) {
+        fail({
+          code: "duplicate-option",
+          message: `This step already has :${key.name}. A step takes it once.`,
+          span: key.span,
+          related: [{ span: existing.span, message: `The first :${key.name} is here.` }],
+        });
         return null;
       }
-      step[key.name] = { text: value.value, span: value.span };
+      const previous = rest[index - 1] ?? placeExpr;
+      step[key.name] = { text: value.value, span: value.span, removal: { start: previous.span.end, end: value.span.end } };
       index += 2;
     }
     return step;
@@ -311,15 +358,22 @@ export function compile(source: string): CompileResult {
   };
 
   let board: Board | null = null;
+  let boardSpan: Span | null = null;
   const stories: Story[] = [];
   const seen = new Map<string, Span>();
 
   const addPlace = ({ place, target }: { place: Place; target: Board }): void => {
-    if (seen.has(place.id)) {
-      fail({ code: "duplicate-id", message: `The id :${place.id} is used twice.`, span: place.idSpan });
+    const first = seen.get(place.id);
+    if (first !== undefined) {
+      fail({
+        code: "duplicate-id",
+        message: `The id :${place.id} is used twice.`,
+        span: place.idSpan,
+        related: [{ span: first, message: `:${place.id} is first used here.` }],
+      });
       return;
     }
-    seen.set(place.id, place.span);
+    seen.set(place.id, place.idSpan);
     target.places.push(place);
   };
 
@@ -357,7 +411,12 @@ export function compile(source: string): CompileResult {
           if (placeForm === null) continue;
           const kind = PLACE_FORMS.get(headOf(placeForm) ?? "");
           if (kind === undefined) {
-            fail({ code: "unknown-form", message: "A region holds only screen, slot, system and decision forms.", span: placeForm.span });
+            fail({
+              code: "unknown-form",
+              message: "A region holds only screen, slot, system and decision forms.",
+              span: placeForm.items[0]?.span ?? placeForm.span,
+              fix: nameFix({ head: placeForm.items[0], candidates: [...PLACE_FORMS.keys()] }),
+            });
             continue;
           }
           const place = readPlace({ form: placeForm, kind, region: region.number });
@@ -376,7 +435,8 @@ export function compile(source: string): CompileResult {
             head === "story"
               ? "Write (story …) after the board, not inside it."
               : `Unknown form (${head} …) in the board. Use region, screen, slot, system or decision.`,
-          span: child.span,
+          span: head === "story" ? child.span : (child.items[0]?.span ?? child.span),
+          fix: head === "story" ? null : nameFix({ head: child.items[0], candidates: BOARD_FORMS }),
         });
         continue;
       }
@@ -394,16 +454,27 @@ export function compile(source: string): CompileResult {
     if (form === null) continue;
     const head = headOf(form);
     if (head === "board") {
-      if (board !== null) {
-        fail({ code: "duplicate-board", message: "A file holds one board.", span: form.span });
+      if (boardSpan !== null) {
+        fail({
+          code: "duplicate-board",
+          message: "A file holds one board.",
+          span: form.items[0]?.span ?? form.span,
+          related: [{ span: boardSpan, message: "The first board is here." }],
+        });
         continue;
       }
+      boardSpan = form.items[0]?.span ?? form.span;
       board = readBoard(form);
     } else if (head === "story") {
       const story = readStory(form);
       if (story !== null) stories.push(story);
     } else {
-      fail({ code: "unknown-form", message: `Unknown top-level form (${head ?? "…"} …). Use (board …) or (story …).`, span: form.span });
+      fail({
+        code: "unknown-form",
+        message: `Unknown top-level form (${head ?? "…"} …). Use (board …) or (story …).`,
+        span: form.items[0]?.span ?? form.span,
+        fix: nameFix({ head: form.items[0], candidates: TOP_FORMS }),
+      });
     }
   }
 

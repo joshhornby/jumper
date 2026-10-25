@@ -7,8 +7,8 @@ import { render } from "./render.ts";
 import type { Fidelity } from "./shapes.ts";
 
 export type { Analysis, Hop, StoryPath } from "./check.ts";
-export type { Diagnostic, Position, Severity, Span } from "./diagnostics.ts";
-export { positionAt } from "./diagnostics.ts";
+export type { Diagnostic, DiagnosticCode, Edit, Fix, Position, Related, Severity, Span } from "./diagnostics.ts";
+export { applyEdits, positionAt } from "./diagnostics.ts";
 export type { Board, Place, PlaceKind, Region, Step, Story, Widget, Wire } from "./model.ts";
 export type { Expr } from "./reader.ts";
 export type { Rendered, RenderOptions } from "./render.ts";

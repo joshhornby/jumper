@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { examples } from "../src/examples.ts";
-import { analyse, build, compile, positionAt } from "../src/index.ts";
+import { analyse, applyEdits, build, compile, positionAt } from "../src/index.ts";
 
 const classic = `
 (board "Invoice autopay"
@@ -264,5 +264,79 @@ describe("diagnostics", () => {
 
   test("a duplicate id points at the second id", () => {
     expect(pointed(`(board "A" (screen :a "A") (screen :a "B"))`)).toEqual([["duplicate-id", ":a"]]);
+  });
+});
+
+describe("fixes", () => {
+  /** Applies machine-applicable fixes until none are left. A fixed place id can reveal fixes for its :via and :touch. */
+  function fixed(source: string): string {
+    let current = source;
+    for (let pass = 0; pass < 5; pass += 1) {
+      const edits = build({ source: current }).diagnostics.flatMap((diagnostic) => (diagnostic.fix?.edit ? [diagnostic.fix.edit] : []));
+      if (edits.length === 0) break;
+      current = applyEdits({ source: current, edits });
+    }
+    return current;
+  }
+
+  test("a misspelt wire target suggests the place id, and the fix removes the gap", () => {
+    const source = `(board "A" (screen :invoice "I" (button "Go" -> :confirmation)) (screen :confirm "C"))`;
+    expect(build({ source }).diagnostics[0]?.fix?.message).toBe("Did you mean :confirm?");
+    const after = fixed(source);
+    expect(after).toContain("-> :confirm)");
+    expect(build({ source: after }).diagnostics).toEqual([]);
+  });
+
+  test("a misspelt step place, :via and :touch are each fixed", () => {
+    const source = `(board "A" (screen :setup "S" (field "Card number") (button "Submit" -> :done)) (screen :done "D"))
+      (story "S" (step :stup "1" :touch "Card numbr" :via "Sumbit") (step :done "2"))`;
+    const after = fixed(source);
+    expect(after).toContain('(step :setup "1" :touch "Card number" :via "Submit")');
+    expect(build({ source: after }).diagnostics).toEqual([]);
+  });
+
+  test(":via that names nothing close suggests the only wire to the next step", () => {
+    const source = `(board "A" (screen :a "A" (button "Continue" -> :b)) (screen :b "B")) (story "S" (step :a "1" :via "Zzz") (step :b "2"))`;
+    expect(fixed(source)).toContain(':via "Continue"');
+  });
+
+  test(":via that leads elsewhere points at its wire and suggests the right one", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :b) (link "Help" -> :c)) (screen :b "B") (screen :c "C"))
+      (story "S" (step :a "1" :via "Go") (step :c "2"))`;
+    const [first] = build({ source }).diagnostics;
+    expect(first?.related.map((related) => source.slice(related.span.start, related.span.end))).toEqual([":b"]);
+    expect(fixed(source)).toContain(':via "Help"');
+  });
+
+  test(":via on the last step is removed cleanly", () => {
+    const source = `(board "A" (screen :a "A")) (story "S" (step :a "1" :via "Nope"))`;
+    expect(fixed(source)).toBe(`(board "A" (screen :a "A")) (story "S" (step :a "1"))`);
+  });
+
+  test("a misspelt form name suggests the right one", () => {
+    expect(fixed(`(board "A" (screen :a "A" (buton "Go")))`)).toBe(`(board "A" (screen :a "A" (button "Go")))`);
+    expect(fixed(`(board "A" (sceen :a "A"))`)).toBe(`(board "A" (screen :a "A"))`);
+    expect(fixed(`(bord "A")`)).toBe(`(board "A")`);
+    expect(build({ source: `(board "A" (screen :a "A")) (story "S" (step :a "1" :vai "x"))` }).diagnostics[0]?.fix?.edit?.text).toBe(
+      ":via",
+    );
+  });
+
+  test("-> written against the id suggests a space", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" ->:b)) (screen :b "B"))`;
+    expect(build({ source }).diagnostics[0]?.code).toBe("arrow-needs-space");
+    expect(build({ source: fixed(source) }).diagnostics).toEqual([]);
+  });
+
+  test("a duplicate id points back at its first use", () => {
+    const source = `(board "A" (screen :a "A") (screen :a "B"))`;
+    const [first] = build({ source }).diagnostics;
+    expect(first?.related[0]?.span).toEqual({ start: 19, end: 21 });
+    expect(first?.fix).toBeNull();
+  });
+
+  test("no suggestion is made when two ids are equally close", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :cat)) (screen :bat "B") (screen :hat "H"))`;
+    expect(build({ source }).diagnostics[0]?.fix).toBeNull();
   });
 });

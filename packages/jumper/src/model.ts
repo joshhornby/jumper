@@ -57,8 +57,11 @@ export type Region = {
   span: Span;
 };
 
-/** A `:via` or `:touch` value. The span covers the string, so diagnostics can point at it. */
-export type StepOption = { text: string; span: Span };
+/**
+ * A `:via` or `:touch` value. `span` covers the string, so diagnostics can point at it.
+ * `removal` covers the key, the value and the space before them, so a fix can delete the option.
+ */
+export type StepOption = { text: string; span: Span; removal: Span };
 
 export type Step = {
   place: string;

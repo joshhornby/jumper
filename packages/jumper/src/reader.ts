@@ -132,3 +132,8 @@ export function read(source: string): ReadResult {
   }
   return { exprs, diagnostics: [] };
 }
+
+/** Writes `text` as a Jumper string literal. `read` gives back the same text. */
+export function quote(text: string): string {
+  return `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("\n", "\\n")}"`;
+}

@@ -1,5 +1,7 @@
-import { type Diagnostic, type DiagnosticCode, diagnostic, type Span } from "./diagnostics.ts";
+import { type Diagnostic, type DiagnosticInput, diagnostic, type Fix, type Span } from "./diagnostics.ts";
 import { type Board, type Place, type Widget, type Wire, wiresOf, wireText } from "./model.ts";
+import { quote } from "./reader.ts";
+import { closest } from "./suggest.ts";
 
 /**
  * explicit: the step named the affordance with :via.
@@ -28,18 +30,38 @@ function same(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+function idFix({ word, candidates, span }: { word: string; candidates: readonly string[]; span: Span }): Fix | null {
+  const match = closest({ word, candidates });
+  return match === null ? null : { message: `Did you mean :${match}?`, edit: { span, text: `:${match}` } };
+}
+
+function textFix({ word, candidates, span }: { word: string; candidates: readonly string[]; span: Span }): Fix | null {
+  const match = closest({ word, candidates });
+  return match === null ? null : { message: `Did you mean ${quote(match)}?`, edit: { span, text: quote(match) } };
+}
+
 function findWidget({ place, text }: { place: Place; text: string }): number {
   return place.widgets.findIndex((widget: Widget) => same(wireText(widget), text));
 }
 
 export function analyse(board: Board): Analysis {
   const diagnostics: Diagnostic[] = [];
-  const gap = ({ code, message, span }: { code: DiagnosticCode; message: string; span: Span }): void => {
-    diagnostics.push(diagnostic({ code, message, span }));
+  const gap = (input: DiagnosticInput): void => {
+    diagnostics.push(diagnostic(input));
   };
 
   const places = new Map(board.places.map((place) => [place.id, place]));
+  const placeIds = board.places.map((place) => place.id);
   const wires = wiresOf(board);
+  const wiresFrom = (id: string): Wire[] => wires.filter((wire) => wire.from === id);
+
+  /** When exactly one wire joins the two places, its affordance is the :via the step most likely meant. */
+  const viaFix = ({ from, to, span }: { from: string; to: string; span: Span }): Fix | null => {
+    const joining = wiresFrom(from).filter((wire) => wire.to === to);
+    const only = joining[0];
+    if (joining.length !== 1 || only === undefined) return null;
+    return { message: `Use the wire that leads to :${to}: ${quote(only.affordance)}`, edit: { span, text: quote(only.affordance) } };
+  };
   const danglingWires = new Set<number>();
 
   wires.forEach((wire, index) => {
@@ -49,6 +71,7 @@ export function analyse(board: Board): Analysis {
         code: "unknown-target",
         message: `"${wire.affordance}" is wired to :${wire.to}, but no place has that id.`,
         span: wire.targetSpan,
+        fix: idFix({ word: wire.to, candidates: placeIds, span: wire.targetSpan }),
       });
     }
   });
@@ -89,12 +112,19 @@ export function analyse(board: Board): Analysis {
           code: "unknown-step-place",
           message: `Step ${index + 1} is on :${step.place}, but no place has that id.`,
           span: step.placeSpan,
+          fix: idFix({ word: step.place, candidates: placeIds, span: step.placeSpan }),
         });
         highlights.push(null);
       } else if (step.touch !== null) {
         const touched = findWidget({ place, text: step.touch.text });
-        if (touched === -1)
-          gap({ code: "unknown-touch", message: `${place.title} has no widget "${step.touch.text}" to touch.`, span: step.touch.span });
+        if (touched === -1) {
+          gap({
+            code: "unknown-touch",
+            message: `${place.title} has no widget "${step.touch.text}" to touch.`,
+            span: step.touch.span,
+            fix: textFix({ word: step.touch.text, candidates: place.widgets.map(wireText).filter(Boolean), span: step.touch.span }),
+          });
+        }
         highlights.push(touched === -1 ? null : touched);
       } else {
         highlights.push(null);
@@ -107,6 +137,7 @@ export function analyse(board: Board): Analysis {
             code: "via-on-last-step",
             message: `The last step has :via "${step.via.text}", but no step comes after it.`,
             span: step.via.span,
+            fix: { message: "Remove :via from the last step.", edit: { span: step.via.removal, text: "" } },
           });
         }
         return;
@@ -124,7 +155,13 @@ export function analyse(board: Board): Analysis {
           .map((wire, wireIndex) => ({ wire, wireIndex }))
           .filter(({ wire }) => wire.from === step.place && (same(wire.affordance, via) || (wire.label !== null && same(wire.label, via))));
         if (candidates.length === 0) {
-          gap({ code: "unknown-via", message: `${place.title} has no wired affordance "${via}".`, span: viaSpan });
+          const names = wiresFrom(step.place).flatMap((wire) => (wire.label === null ? [wire.affordance] : [wire.affordance, wire.label]));
+          gap({
+            code: "unknown-via",
+            message: `${place.title} has no wired affordance "${via}".`,
+            span: viaSpan,
+            fix: textFix({ word: via, candidates: names, span: viaSpan }) ?? viaFix({ from: step.place, to: next.place, span: viaSpan }),
+          });
           hops.push({ kind: "missing", from: step.place, to: next.place });
           return;
         }
@@ -134,11 +171,13 @@ export function analyse(board: Board): Analysis {
         }
         const match = candidates.find(({ wire }) => wire.to === next.place);
         if (match === undefined) {
-          const actual = candidates[0]?.wire.to ?? "";
+          const first = candidates[0]?.wire;
           gap({
             code: "via-leads-elsewhere",
-            message: `"${via}" leads to :${actual}, but the next step is on :${next.place}.`,
+            message: `"${via}" leads to :${first?.to ?? ""}, but the next step is on :${next.place}.`,
             span: viaSpan,
+            related: first === undefined ? [] : [{ span: first.span, message: `"${first.affordance}" is wired here.` }],
+            fix: viaFix({ from: step.place, to: next.place, span: viaSpan }),
           });
           hops.push({ kind: "missing", from: step.place, to: next.place });
           return;
