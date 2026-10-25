@@ -145,6 +145,25 @@ describe("stories", () => {
     expect(messages(source)).toEqual(['gap: More than one wire leads from :a to :b. Add :via with one of "Yes", "Also".']);
   });
 
+  test("there is one hop for each pair of steps, even when a step's place is missing", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :c)) (screen :c "C" (button "On" -> :d)) (screen :d "D"))
+      (story "S" (step :a "1") (step :ghost "2") (step :c "3") (step :d "4"))`;
+    const result = build({ source });
+    if (!result.ok) throw new Error("did not compile");
+    const hops = result.analysis.stories[0]?.hops ?? [];
+    expect(hops.map((hop) => [hop.kind, hop.from, hop.to])).toEqual([
+      ["missing", "a", "ghost"],
+      ["missing", "ghost", "c"],
+      ["inferred", "c", "d"],
+    ]);
+    expect(result.diagnostics.map((diagnostic) => diagnostic.message)).toEqual(["Step 2 is on :ghost, but no place has that id."]);
+  });
+
+  test(":via is still checked when the next step's place is missing", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :b)) (screen :b "B")) (story "S" (step :a "1" :via "Typo") (step :ghost "2"))`;
+    expect(messages(source)).toEqual(['gap: A has no wired affordance "Typo".', "gap: Step 2 is on :ghost, but no place has that id."]);
+  });
+
   test(":touch highlights the named widget, and :via highlights the affordance", () => {
     const board = boardOf(classic);
     expect(analyse(board).stories[0]?.highlights).toEqual([1, 0, 0, null]);

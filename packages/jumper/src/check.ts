@@ -9,6 +9,7 @@ import { type Board, type Place, type Widget, type Wire, wiresOf, wireText } fro
 export type Hop = { kind: "explicit" | "inferred"; from: string; to: string; wire: number } | { kind: "missing"; from: string; to: string };
 
 export type StoryPath = {
+  /** hops[i] joins step i to step i + 1, so a story with n steps has n - 1 hops. */
   hops: Hop[];
   /** For each step, the widget index to highlight on its place, or null. */
   highlights: (number | null)[];
@@ -90,7 +91,12 @@ export function analyse(board: Board): Analysis {
       }
 
       const next = story.steps[index + 1];
-      if (next === undefined || place === undefined) return;
+      if (next === undefined) return;
+      // A missing place already has its own gap, so the hop is marked without a second one.
+      if (place === undefined) {
+        hops.push({ kind: "missing", from: step.place, to: next.place });
+        return;
+      }
 
       if (step.via !== null) {
         const via = step.via;
@@ -99,6 +105,10 @@ export function analyse(board: Board): Analysis {
           .filter(({ wire }) => wire.from === step.place && (same(wire.affordance, via) || (wire.label !== null && same(wire.label, via))));
         if (candidates.length === 0) {
           gap({ message: `${place.title} has no wired affordance "${via}".`, span: step.span });
+          hops.push({ kind: "missing", from: step.place, to: next.place });
+          return;
+        }
+        if (!places.has(next.place)) {
           hops.push({ kind: "missing", from: step.place, to: next.place });
           return;
         }
@@ -111,6 +121,11 @@ export function analyse(board: Board): Analysis {
         }
         if (step.touch === null) highlights[index] = match.wire.widget;
         hops.push({ kind: "explicit", from: step.place, to: next.place, wire: match.wireIndex });
+        return;
+      }
+
+      if (!places.has(next.place)) {
+        hops.push({ kind: "missing", from: step.place, to: next.place });
         return;
       }
 
