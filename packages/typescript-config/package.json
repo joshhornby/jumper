@@ -1,0 +1,14 @@
+{
+  "name": "@jumper/typescript-config",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "react.json",
+    "reset.d.ts",
+    "jumper.d.ts"
+  ],
+  "dependencies": {
+    "@total-typescript/ts-reset": "^0.6.1"
+  }
+}
