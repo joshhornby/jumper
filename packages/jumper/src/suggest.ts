@@ -27,8 +27,9 @@ export function closest({ word, candidates }: { word: string; candidates: readon
   let bestScore = Number.POSITIVE_INFINITY;
   let tied = false;
   for (const candidate of new Set(candidates)) {
+    // An exact match needs no suggestion. A match that differs only in case or spaces ranks first.
+    if (candidate === word) continue;
     const option = candidate.trim().toLowerCase();
-    if (option === target) continue;
     const score = distance({ a: target, b: option });
     // An extended or shortened id, such as :confirmation for :confirm, is far by edits but close in intent.
     const prefix = Math.min(option.length, target.length) >= 4 && (option.startsWith(target) || target.startsWith(option));

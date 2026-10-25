@@ -29,10 +29,6 @@ export type Analysis = {
   diagnostics: Diagnostic[];
 };
 
-function same(a: string, b: string): boolean {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
-}
-
 function idFix({ word, candidates, span }: { word: string; candidates: readonly string[]; span: Span }): Fix | null {
   const match = closest({ word, candidates });
   return match === null ? null : { message: `Did you mean :${match}?`, edit: { span, text: `:${match}` } };
@@ -44,7 +40,7 @@ function textFix({ word, candidates, span }: { word: string; candidates: readonl
 }
 
 function findWidget({ place, text }: { place: Place; text: string }): number {
-  return place.widgets.findIndex((widget: Widget) => same(wireText(widget), text));
+  return place.widgets.findIndex((widget: Widget) => wireText(widget) === text);
 }
 
 const COMPLETE: Incomplete = { places: new Set(), stories: new Set() };
@@ -108,7 +104,7 @@ export function analyse({ board, incomplete = COMPLETE }: { board: Board; incomp
   for (const place of board.places) {
     const seen = new Map<string, Wire>();
     for (const wire of wiresFrom(place.id)) {
-      const name = wire.affordance.trim().toLowerCase();
+      const name = wire.affordance;
       const first = seen.get(name);
       if (first === undefined) {
         seen.set(name, wire);
@@ -209,7 +205,7 @@ export function analyse({ board, incomplete = COMPLETE }: { board: Board; incomp
         const viaSpan = step.via.span;
         const candidates = wires
           .map((wire, wireIndex) => ({ wire, wireIndex }))
-          .filter(({ wire }) => wire.from === step.place && (same(wire.affordance, via) || (wire.label !== null && same(wire.label, via))));
+          .filter(({ wire }) => wire.from === step.place && (wire.affordance === via || wire.label === via));
         if (candidates.length === 0) {
           const names = wiresFrom(step.place).flatMap((wire) => (wire.label === null ? [wire.affordance] : [wire.affordance, wire.label]));
           gap({

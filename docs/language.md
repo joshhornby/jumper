@@ -74,6 +74,7 @@ The wire leaves the screen at the height of its widget.
 - `:via` names the affordance or wire label that takes the step to the next place.
 - If you leave out `:via` and exactly one wire joins the two places, Jumper infers it. The playground draws an inferred wire dashed.
 - `:touch` highlights a widget on the step's place, such as the field the user fills in.
+- `:via` and `:touch` must match the text exactly, including capitals. The story is a contract for the real interface, so "Submit" and "submit" are different labels. Jumper suggests the exact text when you are close.
 
 ## Errors and gaps
 

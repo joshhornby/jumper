@@ -369,6 +369,13 @@ describe("fixes", () => {
     expect(first?.fix).toBeNull();
   });
 
+  test(":via and :touch match exactly, and a slip in case is fixed", () => {
+    const source = `(board "A" (screen :a "A" (field "Email") (button "Go On" -> :b)) (screen :b "B"))
+      (story "S" (step :a "1" :touch "email" :via "go on") (step :b "2"))`;
+    expect(build({ source }).diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["unknown-touch", "unknown-via"]);
+    expect(fixed(source)).toContain(':touch "Email" :via "Go On"');
+  });
+
   test("no suggestion is made when two ids are equally close", () => {
     const source = `(board "A" (screen :a "A" (button "Go" -> :cat)) (screen :bat "B") (screen :hat "H"))`;
     expect(build({ source }).diagnostics[0]?.fix).toBeNull();
@@ -479,7 +486,7 @@ describe("stable output", () => {
   });
 
   test("two wires with one name that lead to different places are a gap", () => {
-    const source = `(board "A" (screen :a "A" (button "Go" -> :b) (link "go" -> :c)) (screen :b "B") (screen :c "C"))`;
+    const source = `(board "A" (screen :a "A" (button "Go" -> :b) (link "Go" -> :c)) (screen :b "B") (screen :c "C"))`;
     expect(build({ source }).diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["duplicate-affordance"]);
     expect(messages(`(board "A" (screen :a "A" (button "Save" -> :b) (button "Save" -> :b)) (screen :b "B"))`)).toEqual([]);
   });
