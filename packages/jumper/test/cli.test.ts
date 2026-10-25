@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const CLI = join(import.meta.dir, "../src/cli.ts");
@@ -43,5 +45,26 @@ describe("cli", () => {
       board: { title: "Invoice autopay" },
       analysis: { wires: expect.arrayContaining([expect.objectContaining({ key: ':invoice "Turn on Autopay"', to: "setup" })]) },
     });
+  });
+  test("build writes the SVG to stdout", () => {
+    const result = run(["build", join(EXAMPLES, "autopay.jumper"), "--story", "1"]);
+    expect(result.code).toBe(0);
+    expect(result.stdout.startsWith("<svg")).toBe(true);
+    expect(result.stdout.endsWith("</svg>")).toBe(true);
+  });
+
+  test("fmt --check passes on the examples, and --write formats a file in place", () => {
+    expect(run(["fmt", join(EXAMPLES, "password-reset.jumper"), "--check"]).code).toBe(0);
+    const file = join(mkdtempSync(join(tmpdir(), "jumper-")), "messy.jumper");
+    writeFileSync(file, `(board "A"   (screen :a "A" (text "x")))`);
+    expect(run(["fmt", file, "--check"]).code).toBe(1);
+    expect(run(["fmt", file, "--write"]).code).toBe(0);
+    expect(readFileSync(file, "utf8")).toBe(`(board "A"\n  (screen :a "A"\n    (text "x")))\n`);
+  });
+
+  test("an unknown command prints the usage", () => {
+    const result = run(["paint", "x.jumper"]);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("Usage:");
   });
 });

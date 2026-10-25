@@ -6,7 +6,11 @@ export type Expr =
   | { kind: "keyword"; name: string; span: Span }
   | { kind: "string"; value: string; span: Span };
 
-export type ReadResult = { exprs: Expr[]; diagnostics: Diagnostic[] };
+/** A `;` comment. The text keeps the `;` and drops trailing spaces. */
+export type Comment = { text: string; span: Span };
+
+/** Comments are kept apart from the tree, so that the compiler ignores them and the printer can keep them. */
+export type ReadResult = { exprs: Expr[]; comments: Comment[]; diagnostics: Diagnostic[] };
 
 class SyntaxFault extends Error {
   readonly code: DiagnosticCode;
@@ -26,6 +30,7 @@ function isSpace(char: string): boolean {
 
 export function read(source: string): ReadResult {
   let position = 0;
+  const comments: Comment[] = [];
 
   const skipTrivia = (): void => {
     while (position < source.length) {
@@ -33,7 +38,9 @@ export function read(source: string): ReadResult {
       if (isSpace(char)) {
         position += 1;
       } else if (char === ";") {
+        const start = position;
         while (position < source.length && source[position] !== "\n") position += 1;
+        comments.push({ text: source.slice(start, position).trimEnd(), span: { start, end: position } });
       } else {
         return;
       }
@@ -125,12 +132,13 @@ export function read(source: string): ReadResult {
     if (fault instanceof SyntaxFault) {
       return {
         exprs: [],
+        comments,
         diagnostics: [diagnostic({ code: fault.code, message: fault.message, span: fault.span })],
       };
     }
     throw fault;
   }
-  return { exprs, diagnostics: [] };
+  return { exprs, comments, diagnostics: [] };
 }
 
 /** Writes `text` as a Jumper string literal. `read` gives back the same text. */

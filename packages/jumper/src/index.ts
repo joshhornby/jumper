@@ -12,7 +12,8 @@ export type { Diagnostic, DiagnosticCode, Edit, Fix, Position, Related, Severity
 export { applyEdits, positionAt } from "./diagnostics.ts";
 export { formatDiagnostic, summarise } from "./format.ts";
 export type { Board, Place, PlaceKind, Region, Step, Story, Widget, Wire } from "./model.ts";
-export type { Expr } from "./reader.ts";
+export { type FormatResult, formatSource } from "./print.ts";
+export type { Comment, Expr } from "./reader.ts";
 export type { Rendered, RenderOptions } from "./render.ts";
 export type { Fidelity } from "./shapes.ts";
 export { analyse, compile, read, render };

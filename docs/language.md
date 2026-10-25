@@ -97,3 +97,12 @@ A **gap** is a hole in the shaping work. The board still draws, and the gap is m
 A step that gives `:via` or `:touch` twice is an error.
 
 Jumper does not report a screen with no way out, or a loop that a story can enter. A confirmation screen is a real end, and a "card declined" wire back to the form is a real loop.
+
+## Layout
+
+`jumper fmt` prints a file in one canonical layout:
+
+- A form that holds only text, ids and arrows stays on one line, such as `(button "Submit" -> :save-card)`.
+- A form that holds other forms puts its name, id and title on the first line, then each child on its own line, indented by two spaces.
+- One blank line separates the board and each story.
+- A comment stays above the code it comes before. A comment at the end of a line stays at the end of that line.

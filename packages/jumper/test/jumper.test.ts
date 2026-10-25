@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { examples } from "../src/examples.ts";
-import { analyse, applyEdits, type Board, build, compile, formatDiagnostic, positionAt, summarise } from "../src/index.ts";
+import { analyse, applyEdits, type Board, build, compile, formatDiagnostic, formatSource, positionAt, summarise } from "../src/index.ts";
 
 const classic = `
 (board "Invoice autopay"
@@ -489,5 +489,33 @@ describe("stable output", () => {
     const source = `(board "A" (screen :a "A" (button "Go" -> :b) (link "Go" -> :c)) (screen :b "B") (screen :c "C"))`;
     expect(build({ source }).diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["duplicate-affordance"]);
     expect(messages(`(board "A" (screen :a "A" (button "Save" -> :b) (button "Save" -> :b)) (screen :b "B"))`)).toEqual([]);
+  });
+});
+
+describe("fmt", () => {
+  test("the examples are already in the canonical layout", () => {
+    for (const example of examples) {
+      expect(formatSource(example.source)).toEqual({ ok: true, text: example.source });
+    }
+  });
+
+  test("a list that holds lists puts each child on its own line", () => {
+    const result = formatSource(`(board "A" (region "R" (screen :a "A" (button "Go" -> :b) (text   "x"))))  (story "S" (step :a "1"))`);
+    expect(result).toEqual({
+      ok: true,
+      text: `(board "A"\n  (region "R"\n    (screen :a "A"\n      (button "Go" -> :b)\n      (text "x"))))\n\n(story "S"\n  (step :a "1"))\n`,
+    });
+  });
+
+  test("comments stay with their code", () => {
+    const source = `; top\n(board "A" ; title\n  ; before\n  (screen :a "A") ; after\n  ; last\n)\n`;
+    expect(formatSource(source)).toEqual({
+      ok: true,
+      text: `; top\n(board "A" ; title\n  ; before\n  (screen :a "A") ; after\n  ; last\n)\n`,
+    });
+  });
+
+  test("a syntax error stops formatting", () => {
+    expect(formatSource(`(board "A"`)).toMatchObject({ ok: false, diagnostics: [{ code: "unclosed-list" }] });
   });
 });

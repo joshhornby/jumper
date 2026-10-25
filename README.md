@@ -53,9 +53,10 @@ Use the CLI:
 ```sh
 bun packages/jumper/src/cli.ts check packages/jumper/examples/broken.jumper
 bun packages/jumper/src/cli.ts build packages/jumper/examples/autopay.jumper --story 1 -o autopay.svg
+bun packages/jumper/src/cli.ts fmt packages/jumper/examples/autopay.jumper --check
 ```
 
-`check` prints each problem with its source line and a suggested fix. It exits with 1 when the board has errors or gaps. Add `--json` to get the diagnostics as JSON for editors, scripts and agents. `build` options are `--breadboard`, `--no-notes` and `--story <n>`.
+`check` prints each problem with its source line and a suggested fix. It exits with 1 when the board has errors or gaps. Add `--json` to get the diagnostics as JSON for editors, scripts and agents. `build` options are `--breadboard`, `--no-notes` and `--story <n>`. `fmt` prints the file in the canonical layout, so the same board always diffs the same. Add `--write` to format the file in place, or `--check` to exit with 1 when it is not formatted.
 
 ## Develop
 
