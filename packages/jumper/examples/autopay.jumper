@@ -1,0 +1,38 @@
+; Shape Up's autopay breadboard, drawn as wireframes.
+(board "Invoice autopay"
+  (region "Turn it on" "Can a client switch on autopay from the invoice they are paying?"
+    (screen :invoice "Invoice"
+      (title "Invoice #1042")
+      (text "Amount due £480, due 14 Nov")
+      (primary "Pay now")
+      (button "Turn on Autopay" -> :setup)
+      (slot "Autopay on" -> :charge "on due date")
+      (note "The slot shows only when autopay is on."))
+    (screen :setup "Setup Autopay"
+      (title "Pay invoices automatically")
+      (field "Card number")
+      (field "Expiry / CVC")
+      (check "Charge on the due date")
+      (primary "Submit" -> :save-card))
+    (system :save-card "Save card"
+      (out "valid" -> :confirm)
+      (out "declined" -> :setup)))
+  (region "Confirm" "What does the client see once it is on?"
+    (screen :confirm "Confirmation"
+      (title "Autopay is on")
+      (text "Future invoices pay themselves on their due date.")
+      (link "Back to invoice" -> :invoice)
+      (question "Do we email a receipt for each automatic charge?"))
+    (system :charge "Charge card"
+      (out "paid" -> :confirm "receipt"))))
+
+(story "Client turns on autopay"
+  (step :invoice "Opens the overdue invoice" :via "Turn on Autopay")
+  (step :setup "Enters the card once" :touch "Card number" :via "Submit")
+  (step :save-card "Card is verified" :via "valid")
+  (step :confirm "Future invoices pay themselves"))
+
+(story "Card is declined"
+  (step :setup "Submits a bad card")
+  (step :save-card "Bank declines it" :via "declined")
+  (step :setup "Sees the form again"))

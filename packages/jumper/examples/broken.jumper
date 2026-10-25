@@ -1,0 +1,25 @@
+; This board is broken on purpose. Each mistake shows a different gap check.
+(board "Broken checkout"
+  (region "Checkout"
+    (screen :cart "Cart"
+      (list "Mug" "Tea towel")
+      (primary "Checkout" -> :payment))
+    (screen :payment "Payment"
+      (field "Card")
+      (primary "Pay" -> :receipt)
+      (link "Back to cart" -> :cart)
+      (link "Apply voucher" -> :voucher)))
+  (region "Orphans" "These screens point at each other, but nothing leads in."
+    (screen :help "Help"
+      (link "Contact us" -> :contact))
+    (screen :contact "Contact"
+      (link "Help" -> :help))))
+
+(story "Buys a mug"
+  (step :cart "Adds a mug" :via "Checkout")
+  (step :payment "Pays" :via "Pay")
+  (step :receipt "Sees the receipt"))
+
+(story "Skips ahead"
+  (step :cart "Looks at the cart")
+  (step :contact "Somehow lands on contact" :touch "Email us"))

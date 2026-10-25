@@ -1,0 +1,39 @@
+; One gap is left on purpose: nothing wires "Sent" back to the thread.
+(board "Volunteer requests"
+  (region "Post a request" "Can a coordinator post a request in under a minute?"
+    (screen :requests "Requests"
+      (title "Requests")
+      (board
+        (col "Open" "Drivers for Sat" "Kitchen help")
+        (col "Filled" "Stewards")
+        (col "Closed"))
+      (primary "New request" -> :compose))
+    (screen :compose "New request"
+      (field "What do you need?")
+      (field "When")
+      (slot "Skills picker")
+      (primary "Post" -> :thread)
+      (question "Do requests expire on their own?")))
+  (region "Reply" "How do volunteers say yes?"
+    (screen :thread "Request thread"
+      (title "Drivers for Sat")
+      (meta "Posted by a coordinator · 2 h ago")
+      (post "Coordinator" "Need two drivers from 9 am.")
+      (post "Volunteer" "I can do the morning run.")
+      (field "Reply")
+      (button "I can help" -> :confirm-help))
+    (decision :confirm-help "Still slots left?"
+      (to :sent "yes")
+      (to :full "no"))
+    (screen :sent "Sent"
+      (text "Thanks. The coordinator will confirm by email.")
+      (link "View in email"))
+    (screen :full "Request is full"
+      (text "Someone got there first.")
+      (link "See other requests" -> :requests))))
+
+(story "Volunteer offers to drive"
+  (step :thread "Reads the request" :via "I can help")
+  (step :confirm-help "There is a slot" :via "yes")
+  (step :sent "Gets the email")
+  (step :thread "Comes back to the thread"))
