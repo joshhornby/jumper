@@ -56,6 +56,20 @@ describe("syntax", () => {
     expect(positionAt({ source, offset: first?.span.start ?? -1 })).toEqual({ line: 2, column: 3 });
   });
 
+  test("an unclosed list is found by indentation, not reported at the outermost list", () => {
+    const source = `(board "A"\n  (screen :a "A"\n    (text "x")\n  (screen :b "B"\n    (text "y")))\n\n(story "S"\n  (step :a "1"))`;
+    const [first] = build({ source }).diagnostics;
+    expect(first?.code).toBe("unclosed-list");
+    expect(positionAt({ source, offset: first?.span.start ?? -1 })).toEqual({ line: 2, column: 3 });
+    expect(first?.related[0]?.message).toBe("It most likely ends before line 4, which starts at the same depth.");
+  });
+
+  test("a list that looked unclosed but closed later is not blamed", () => {
+    const source = `(board "A"\n(screen :a "A"))\n(story "S"\n  (step :a "1")`;
+    const [first] = build({ source }).diagnostics;
+    expect(positionAt({ source, offset: first?.span.start ?? -1 })).toEqual({ line: 3, column: 1 });
+  });
+
   test("a stray closing parenthesis is an error", () => {
     expect(messages(`(board "A"))`)).toEqual(["error: This closing parenthesis has no matching opening parenthesis."]);
   });

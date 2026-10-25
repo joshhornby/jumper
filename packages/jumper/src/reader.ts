@@ -1,4 +1,4 @@
-import { type Diagnostic, type DiagnosticCode, diagnostic, type Span } from "./diagnostics.ts";
+import { type Diagnostic, type DiagnosticCode, diagnostic, type Related, type Span } from "./diagnostics.ts";
 
 export type Expr =
   | { kind: "list"; items: Expr[]; span: Span }
@@ -15,12 +15,17 @@ export type ReadResult = { exprs: Expr[]; comments: Comment[]; diagnostics: Diag
 class SyntaxFault extends Error {
   readonly code: DiagnosticCode;
   readonly span: Span;
-  constructor({ code, message, span }: { code: DiagnosticCode; message: string; span: Span }) {
+  readonly related: Related[];
+  constructor({ code, message, span, related = [] }: { code: DiagnosticCode; message: string; span: Span; related?: Related[] }) {
     super(message);
     this.code = code;
     this.span = span;
+    this.related = related;
   }
 }
+
+/** An open list, with the column of its parenthesis. */
+type Open = { start: number; line: number; column: number };
 
 const DELIMITERS = new Set(["(", ")", '"', ";"]);
 
@@ -31,6 +36,27 @@ function isSpace(char: string): boolean {
 export function read(source: string): ReadResult {
   let position = 0;
   const comments: Comment[] = [];
+
+  const lineStarts = [0];
+  for (let index = 0; index < source.length; index += 1) if (source[index] === "\n") lineStarts.push(index + 1);
+  const lineOf = (offset: number): number => {
+    let low = 0;
+    let high = lineStarts.length - 1;
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2);
+      if ((lineStarts[middle] ?? 0) <= offset) low = middle;
+      else high = middle - 1;
+    }
+    return low;
+  };
+
+  /**
+   * A missing parenthesis is reported at the end of the file, far from the mistake. Indentation says more:
+   * when a line starts a list at the same depth as a list that is still open, that open list most likely
+   * should have closed before the line. The first such list is kept, to report in place of the outer one.
+   */
+  const open: Open[] = [];
+  let suspect: { list: Open; parent: Open | null; before: number } | null = null;
 
   const skipTrivia = (): void => {
     while (position < source.length) {
@@ -92,11 +118,34 @@ export function read(source: string): ReadResult {
     const char = source[position];
     if (char === "(") {
       const start = position;
+      const line = lineOf(start);
+      const lineStart = lineStarts[line] ?? 0;
+      const column = start - lineStart;
+      if (suspect === null && source.slice(lineStart, start).trim() === "") {
+        const index = open.findLastIndex((list) => list.column >= column && list.line < line);
+        const list = open[index];
+        if (list !== undefined) suspect = { list, parent: open[index - 1] ?? null, before: start };
+      }
+      open.push({ start, line, column });
       position += 1;
       const items: Expr[] = [];
       for (;;) {
         skipTrivia();
         if (position >= source.length) {
+          if (suspect !== null) {
+            const at = suspect.before;
+            throw new SyntaxFault({
+              code: "unclosed-list",
+              message: "This list has no closing parenthesis.",
+              span: { start: suspect.list.start, end: suspect.list.start + 1 },
+              related: [
+                {
+                  span: { start: at, end: at + 1 },
+                  message: `It most likely ends before line ${lineOf(at) + 1}, which starts at the same depth.`,
+                },
+              ],
+            });
+          }
           throw new SyntaxFault({
             code: "unclosed-list",
             message: "This list has no closing parenthesis.",
@@ -104,6 +153,9 @@ export function read(source: string): ReadResult {
           });
         }
         if (source[position] === ")") {
+          const closed = open.pop();
+          // The suspect may close by taking a later list's parenthesis. Only when its parent closes is the mistake ruled out.
+          if (suspect !== null && closed === (suspect.parent ?? suspect.list)) suspect = null;
           position += 1;
           return { kind: "list", items, span: { start, end: position } };
         }
@@ -133,7 +185,7 @@ export function read(source: string): ReadResult {
       return {
         exprs: [],
         comments,
-        diagnostics: [diagnostic({ code: fault.code, message: fault.message, span: fault.span })],
+        diagnostics: [diagnostic({ code: fault.code, message: fault.message, span: fault.span, related: fault.related })],
       };
     }
     throw fault;
