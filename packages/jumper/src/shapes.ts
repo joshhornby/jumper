@@ -1,4 +1,4 @@
-import type { Place, Widget } from "./model.ts";
+import { type Place, unreachable, type Widget } from "./model.ts";
 import { escapeXml, textWidth, truncate, wrap } from "./text.ts";
 import { colour } from "./theme.ts";
 
@@ -103,8 +103,12 @@ export function breadboardText(widget: Widget): string | null {
     case "meta":
     case "image":
       return widget.wire !== null ? widget.text : null;
-    default:
+    case "list":
+    case "columns":
+    case "divider":
       return null;
+    default:
+      return unreachable(widget);
   }
 }
 

@@ -107,9 +107,28 @@ export function wireText(widget: Widget): string {
       return widget.columns.map((column) => column.title).join(", ");
     case "divider":
       return "";
-    default:
+    case "title":
+    case "text":
+    case "meta":
+    case "image":
+    case "field":
+    case "button":
+    case "primary":
+    case "link":
+    case "check":
+    case "slot":
+    case "post":
+    case "out":
+    case "to":
       return widget.text;
+    default:
+      return unreachable(widget);
   }
+}
+
+/** Fails to compile when a switch misses a case, so a new widget type cannot be forgotten. */
+export function unreachable(value: never): never {
+  throw new Error(`Unhandled value: ${JSON.stringify(value)}`);
 }
 
 export function wiresOf(board: Board): Wire[] {
