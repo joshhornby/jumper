@@ -6,30 +6,34 @@ export type CompileResult = { board: Board | null; diagnostics: Diagnostic[] };
 
 type ListExpr = Extract<Expr, { kind: "list" }>;
 
-const PLACE_FORMS: Record<string, PlaceKind> = {
-  screen: "screen",
-  place: "screen",
-  slot: "slot",
-  system: "system",
-  decision: "decision",
-};
+// Maps, not object literals, so that names such as `constructor` do not match inherited keys.
+const PLACE_FORMS = new Map<string, PlaceKind>([
+  ["screen", "screen"],
+  ["place", "screen"],
+  ["slot", "slot"],
+  ["system", "system"],
+  ["decision", "decision"],
+]);
 
-const TEXT_WIDGETS = {
-  title: "title",
-  text: "text",
-  info: "text",
-  meta: "meta",
-  image: "image",
-  field: "field",
-  button: "button",
-  primary: "primary",
-  link: "link",
-  check: "check",
-  slot: "slot",
-  out: "out",
-} as const;
+type TextWidgetType = Extract<
+  Widget["type"],
+  "title" | "text" | "meta" | "image" | "field" | "button" | "primary" | "link" | "check" | "slot" | "out"
+>;
 
-type TextWidgetType = (typeof TEXT_WIDGETS)[keyof typeof TEXT_WIDGETS];
+const TEXT_WIDGETS = new Map<string, TextWidgetType>([
+  ["title", "title"],
+  ["text", "text"],
+  ["info", "text"],
+  ["meta", "meta"],
+  ["image", "image"],
+  ["field", "field"],
+  ["button", "button"],
+  ["primary", "primary"],
+  ["link", "link"],
+  ["check", "check"],
+  ["slot", "slot"],
+  ["out", "out"],
+]);
 
 const ALLOWED: Record<PlaceKind, (type: Widget["type"]) => string | null> = {
   screen: (type) => (type === "out" || type === "to" ? branchHint(type) : null),
@@ -191,10 +195,10 @@ export function compile(source: string): CompileResult {
       const [author, text] = strings.length === 2 ? strings : [null, strings[0]];
       return { type: "post", author: author ?? null, text: text ?? "", wire, span: form.span };
     }
-    if (name in TEXT_WIDGETS) {
+    const type = TEXT_WIDGETS.get(name);
+    if (type !== undefined) {
       const strings = stringsOf({ args, form, min: 1, max: 1 });
       if (strings === null) return null;
-      const type: TextWidgetType = TEXT_WIDGETS[name as keyof typeof TEXT_WIDGETS];
       if (type === "out" && wire === null) {
         fail({ message: '(out …) needs a target: (out "label" -> :id).', span: form.span });
         return null;
@@ -337,7 +341,7 @@ export function compile(source: string): CompileResult {
         for (const inner of child.items.slice(bodyStart)) {
           const placeForm = expectList(inner, "inside the region");
           if (placeForm === null) continue;
-          const kind = PLACE_FORMS[headOf(placeForm) ?? ""];
+          const kind = PLACE_FORMS.get(headOf(placeForm) ?? "");
           if (kind === undefined) {
             fail({ message: "A region holds only screen, slot, system and decision forms.", span: placeForm.span });
             continue;
@@ -350,7 +354,7 @@ export function compile(source: string): CompileResult {
         continue;
       }
 
-      const kind = PLACE_FORMS[head];
+      const kind = PLACE_FORMS.get(head);
       if (kind === undefined) {
         fail({
           message:

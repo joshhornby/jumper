@@ -15,6 +15,7 @@
     "typecheck": "tsc -p ."
   },
   "devDependencies": {
-    "@jumper/typescript-config": "workspace:*"
+    "@jumper/typescript-config": "workspace:*",
+    "fast-check": "^4.10.2"
   }
 }

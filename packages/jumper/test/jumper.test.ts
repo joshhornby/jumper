@@ -65,6 +65,13 @@ describe("forms", () => {
     expect(messages(`(board "A" (screen :a "A" (sparkle "x")))`)).toEqual(["error: Unknown widget (sparkle …)."]);
   });
 
+  test("names that are object prototype keys are unknown forms, not crashes", () => {
+    expect(messages(`(board "A" (constructor :a "A" (text "x")))`)).toEqual([
+      "error: Unknown form (constructor …) in the board. Use region, screen, slot, system or decision.",
+    ]);
+    expect(messages(`(board "A" (screen :a "A" (toString "x")))`)).toEqual(["error: Unknown widget (toString …)."]);
+  });
+
   test("a duplicate id is an error", () => {
     expect(messages(`(board "A" (screen :a "A") (screen :a "B"))`)).toEqual(["error: The id :a is used twice."]);
   });
