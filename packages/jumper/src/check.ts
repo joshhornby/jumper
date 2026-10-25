@@ -87,6 +87,25 @@ export function analyse({ board, incomplete = COMPLETE }: { board: Board; incomp
   });
 
   for (const place of board.places) {
+    if (incomplete.places.has(place.id)) continue;
+    const branches = place.widgets.filter((widget) => widget.wire !== null).length;
+    if (place.kind === "system" && branches === 0) {
+      gap({
+        code: "system-without-outcome",
+        message: `${place.title} has no (out …), so the flow stops inside the system. Add an outcome, such as (out "done" -> :next).`,
+        span: place.idSpan,
+      });
+    }
+    if (place.kind === "decision" && branches < 2) {
+      gap({
+        code: "decision-without-branches",
+        message: `${place.title} has ${branches === 0 ? "no branches" : "one branch"}. A decision needs at least two (to …) branches.`,
+        span: place.idSpan,
+      });
+    }
+  }
+
+  for (const place of board.places) {
     const seen = new Map<string, Wire>();
     for (const wire of wiresFrom(place.id)) {
       const name = wire.affordance.trim().toLowerCase();

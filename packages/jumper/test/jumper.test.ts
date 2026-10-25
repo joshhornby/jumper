@@ -123,6 +123,24 @@ describe("gaps", () => {
   });
 });
 
+describe("places", () => {
+  test("a system with no outcome is a gap", () => {
+    const source = `(board "A" (screen :a "A" (button "Save" -> :s)) (system :s "Save" (text "Writes the record")))`;
+    expect(build({ source }).diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["system-without-outcome"]);
+  });
+
+  test("a decision needs at least two branches", () => {
+    const one = `(board "A" (screen :a "A" (button "Go" -> :d)) (decision :d "Ok?" (to :a "yes")))`;
+    expect(messages(one)).toEqual(["gap: Ok? has one branch. A decision needs at least two (to …) branches."]);
+    const two = `(board "A" (screen :a "A" (button "Go" -> :d)) (decision :d "Ok?" (to :a "yes") (to :a "no")))`;
+    expect(messages(two)).toEqual([]);
+  });
+
+  test("a screen with no way out is a legitimate end, not a gap", () => {
+    expect(messages(`(board "A" (screen :a "A" (button "Pay" -> :done)) (screen :done "Done" (text "Thanks")))`)).toEqual([]);
+  });
+});
+
 describe("stories", () => {
   test("a hop without :via is inferred when exactly one wire fits", () => {
     const board = boardOf(classic);

@@ -45,6 +45,8 @@ const SEVERITY = {
   "empty-story": "gap",
   "via-on-last-step": "gap",
   "duplicate-affordance": "gap",
+  "system-without-outcome": "gap",
+  "decision-without-branches": "gap",
 } as const satisfies Record<string, Severity>;
 
 export type DiagnosticCode = keyof typeof SEVERITY;

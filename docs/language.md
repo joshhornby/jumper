@@ -82,6 +82,8 @@ An **error** is malformed source, such as a missing parenthesis or an unknown wi
 A **gap** is a hole in the shaping work. The board still draws, and the gap is marked on it:
 
 - A wire points at an id that no place has.
+- A system has no `(out …)`, so the flow stops inside it.
+- A decision has fewer than two `(to …)` branches.
 - Two wires on one place have the same name but lead to different places. A story cannot say which one it means.
 - A group of places is unreachable. Every place with no incoming wire counts as an entry point, so only a loop with no way in, and the places it leads to, are gaps.
 - A story step is on a place that does not exist.
@@ -92,3 +94,5 @@ A **gap** is a hole in the shaping work. The board still draws, and the gap is m
 - The last step of a story has `:via`. No hop follows the last step, so `:via` means nothing there.
 
 A step that gives `:via` or `:touch` twice is an error.
+
+Jumper does not report a screen with no way out, or a loop that a story can enter. A confirmation screen is a real end, and a "card declined" wire back to the form is a real loop.
