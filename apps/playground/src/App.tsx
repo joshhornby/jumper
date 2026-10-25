@@ -14,11 +14,22 @@ function plural({ count, word }: { count: number; word: string }): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
+function PaneIcon({ side }: { side: "left" | "right" }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" />
+      <path d={side === "left" ? "M6 2.75v10.5" : "M10 2.75v10.5"} />
+    </svg>
+  );
+}
+
 export function App() {
   const saved = useMemo(loadSettings, []);
   const [source, setSource] = useState(saved?.source ?? DEFAULT_SOURCE);
   const [fidelity, setFidelity] = useState<Fidelity>(saved?.fidelity ?? "wireframe");
   const [showNotes, setShowNotes] = useState(saved?.showNotes ?? true);
+  const [showSource, setShowSource] = useState(saved?.showSource ?? true);
+  const [showSide, setShowSide] = useState(saved?.showSide ?? true);
   const [story, setStory] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [fitSignal, setFitSignal] = useState(0);
@@ -34,8 +45,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    saveSettings({ source, fidelity, showNotes });
-  }, [source, fidelity, showNotes]);
+    saveSettings({ source, fidelity, showNotes, showSource, showSide });
+  }, [source, fidelity, showNotes, showSource, showSide]);
 
   useEffect(() => {
     if (toast === null) return undefined;
@@ -65,6 +76,15 @@ export function App() {
     if (example === undefined) return;
     setSource(example.source);
     setStory(null);
+    setFitSignal((signal) => signal + 1);
+  };
+
+  // An edited example no longer matches, so the select falls back to its placeholder.
+  const selectedExample = examples.find((example) => example.source === source)?.id ?? "";
+
+  // The board gains or loses width, so fit it again.
+  const togglePane = (setShow: (update: (shown: boolean) => boolean) => void): void => {
+    setShow((shown) => !shown);
     setFitSignal((signal) => signal + 1);
   };
 
@@ -104,6 +124,16 @@ export function App() {
   return (
     <div className="app">
       <header className="toolbar">
+        <button
+          type="button"
+          className="button icon"
+          aria-pressed={showSource}
+          aria-label="Show source"
+          title="Show source"
+          onClick={() => togglePane(setShowSource)}
+        >
+          <PaneIcon side="left" />
+        </button>
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
             ⌁
@@ -112,7 +142,7 @@ export function App() {
         </div>
         <label className="field">
           <span className="sr-only">Example</span>
-          <select value="" onChange={(event) => loadExample(event.target.value)} aria-label="Load an example">
+          <select value={selectedExample} onChange={(event) => loadExample(event.target.value)} aria-label="Load an example">
             <option value="" disabled>
               Load example…
             </option>
@@ -149,10 +179,20 @@ export function App() {
         <button type="button" className="button primary" disabled={shown === null} onClick={download}>
           Download
         </button>
+        <button
+          type="button"
+          className="button icon"
+          aria-pressed={showSide}
+          aria-label="Show stories and problems"
+          title="Show stories and problems"
+          onClick={() => togglePane(setShowSide)}
+        >
+          <PaneIcon side="right" />
+        </button>
       </header>
 
-      <main className="workspace">
-        <section className="pane source-pane" aria-label="Source">
+      <main className={`workspace${showSource ? "" : " no-source"}${showSide ? "" : " no-side"}`}>
+        <section className="pane source-pane" aria-label="Source" hidden={!showSource}>
           <Editor ref={editor} value={source} onChange={setSource} diagnostics={result.diagnostics} placeIds={placeIds} />
         </section>
 
@@ -165,7 +205,7 @@ export function App() {
           <Preview svg={shown?.svg ?? null} width={shown?.width ?? 0} height={shown?.height ?? 0} fitSignal={fitSignal} />
         </section>
 
-        <aside className="pane side-pane" aria-label="Stories and problems">
+        <aside className="pane side-pane" aria-label="Stories and problems" hidden={!showSide}>
           <h2>Stories</h2>
           {stories.length === 0 ? (
             <p className="muted">Add a (story …) to walk a path through the board.</p>

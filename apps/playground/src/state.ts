@@ -7,6 +7,8 @@ export const Settings = z.object({
   source: z.string().max(MAX_SOURCE),
   fidelity: z.enum(["wireframe", "breadboard"]).catch("wireframe"),
   showNotes: z.boolean().catch(true),
+  showSource: z.boolean().catch(true),
+  showSide: z.boolean().catch(true),
 });
 
 export type Settings = z.infer<typeof Settings>;
