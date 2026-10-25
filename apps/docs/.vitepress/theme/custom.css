@@ -1,0 +1,141 @@
+/* The playground editor's token colours, so a board reads the same in both. */
+:root {
+  --syntax-form: #9c36b5;
+  --syntax-id: #0b7285;
+  --syntax-key: #e8590c;
+  --syntax-string: #2b8a3e;
+  --syntax-comment: #868e96;
+  --syntax-arrow: #1c7ed6;
+  --syntax-paren: #adb5bd;
+  --board-canvas: #e9ecef;
+}
+
+.dark {
+  --syntax-form: #da77f2;
+  --syntax-id: #66d9e8;
+  --syntax-key: #ffa94d;
+  --syntax-string: #8ce99a;
+  --syntax-comment: #6b7480;
+  --syntax-arrow: #74c0fc;
+  --syntax-paren: #4a525c;
+  --board-canvas: #0b0d10;
+}
+
+.page-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.page-actions button,
+.page-actions a {
+  padding: 2px 10px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  color: var(--vp-c-text-2);
+  text-decoration: none;
+}
+
+.page-actions button:hover,
+.page-actions a:hover {
+  color: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+}
+
+.jumper-example {
+  margin: 16px 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.jumper-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  font: 12px var(--vp-font-family-mono);
+  color: var(--vp-c-text-3);
+}
+
+.vp-doc .jumper-link {
+  font-family: var(--vp-font-family-base);
+  color: var(--vp-c-text-2);
+  text-decoration: none;
+}
+
+.vp-doc .jumper-link:hover {
+  color: var(--vp-c-brand-1);
+}
+
+.jumper-panel pre {
+  margin: 0;
+  padding: 12px 16px;
+  overflow-x: auto;
+  background: var(--vp-code-block-bg);
+}
+
+.vp-doc .jumper-panel code {
+  padding: 0;
+  background: none;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--vp-c-text-1);
+}
+
+/* The board is a paper document, so it keeps light colours in every theme, as in the playground. */
+.jumper-board {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  background: var(--board-canvas);
+}
+
+.jumper-board svg {
+  display: block;
+  width: var(--board-width);
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* After the base rules, so the more specific selector comes last. */
+.jumper-panel + .jumper-panel,
+.jumper-panel + .jumper-board {
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.tok-form {
+  color: var(--syntax-form);
+}
+
+.tok-id {
+  color: var(--syntax-id);
+}
+
+.tok-key {
+  color: var(--syntax-key);
+}
+
+.tok-string {
+  color: var(--syntax-string);
+}
+
+.tok-comment {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.tok-arrow {
+  color: var(--syntax-arrow);
+  font-weight: 600;
+}
+
+.tok-paren {
+  color: var(--syntax-paren);
+}

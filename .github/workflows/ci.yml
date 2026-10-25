@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run typecheck
+      - run: bun test
+      # The published CLI must run on plain Node, without Bun.
+      - run: bun --filter jumper-cli build
+      - run: node packages/cli/dist/cli.js check packages/jumper/examples/autopay.jumper
+      # The docs build fails on a dead link.
+      - run: bun run build:site

@@ -1,0 +1,7 @@
+{
+  "extends": "@jumper/typescript-config/base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src", "test", ".vitepress/config.ts"]
+}

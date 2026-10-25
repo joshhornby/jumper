@@ -1,6 +1,6 @@
 # Jumper
 
-Jumper is a small language for Shape Up breadboards. You write S-expressions. Jumper draws wireframe or breadboard boards and storyboards as SVG. It also checks that every story follows a real wire.
+Jumper is a small language for user flows and wireframes. It grew out of breadboarding from Basecamp's [Shape Up](https://basecamp.com/shapeup), but you do not need Shape Up to use it. You write S-expressions. Jumper draws wireframe or breadboard boards and storyboards as SVG. It also checks that every story follows a real wire.
 
 ```lisp
 (board "Invoice autopay"
@@ -24,17 +24,37 @@ Jumper is a small language for Shape Up breadboards. You write S-expressions. Ju
   (step :confirm "Future invoices pay themselves"))
 ```
 
-See [docs/language.md](docs/language.md) for the full language.
+Read the documentation at **https://joshhornby.github.io/jumper/**, or try Jumper in the [playground](https://joshhornby.github.io/jumper/playground/). Agents can start from [llms.txt](https://joshhornby.github.io/jumper/llms.txt).
+
+## Install the CLI
+
+The CLI needs Node.js 20 or later.
+
+```sh
+npm install --global jumper-cli   # or: pnpm add -g, yarn global add, bun add -g
+```
+
+```sh
+jumper check board.jumper                  # report errors and gaps, add --json for tools
+jumper build board.jumper -o board.svg     # draw the board, add --story 1 to draw a story
+jumper fmt board.jumper --write            # format in the canonical layout
+jumper diff before.jumper after.jumper     # compare two versions by meaning
+jumper scenarios board.jumper              # turn each story into a test scenario
+```
+
+See the [CLI reference](https://joshhornby.github.io/jumper/cli) for every option and exit code.
 
 ## Layout
 
-| Path                         | Contents                                                         |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `packages/jumper`            | The language: reader, compiler, checker, SVG renderer and CLI    |
-| `apps/playground`            | The browser playground: editor, live board, stories and problems |
-| `packages/typescript-config` | Strict TypeScript config, copied from Anvil                      |
+| Path                         | Contents                                                              |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `packages/jumper`            | The language: reader, compiler, checker, formatter and SVG renderer   |
+| `packages/cli`               | The `jumper` command, published to npm as `jumper-cli`                |
+| `apps/playground`            | The browser playground: editor, live board, stories and problems      |
+| `apps/docs`                  | The documentation site, built with VitePress. Pages are in `content/` |
+| `packages/typescript-config` | Strict TypeScript config, copied from Anvil                           |
 
-## Use it
+## Develop
 
 Install [Bun](https://bun.com), then install the dependencies:
 
@@ -42,31 +62,21 @@ Install [Bun](https://bun.com), then install the dependencies:
 bun install
 ```
 
-Run the playground at http://localhost:3000:
-
 ```sh
-bun run dev
+bun run dev         # playground at http://localhost:3000
+bun run docs        # docs at http://localhost:5173/jumper/
+bun test            # all tests
+bun run typecheck   # all packages
+bun run check       # Biome format and lint
+bun run build:site  # docs and playground for GitHub Pages, in apps/docs/dist
 ```
 
-The playground keeps your own boards in the browser. Use **Save** (Ctrl+S or Cmd+S) to save the board you are editing, and open it again from the menu next to the logo. **My boards** in the side pane can rename, delete, import and export boards as `.jumper` files. The browser is the only copy, so export a board to keep it safe or to add it to the repository.
+Run the CLI from source with `bun packages/cli/src/cli.ts <command>`.
 
-Use the CLI:
+## Release
 
-```sh
-bun packages/jumper/src/cli.ts check packages/jumper/examples/broken.jumper
-bun packages/jumper/src/cli.ts build packages/jumper/examples/autopay.jumper --story 1 -o autopay.svg
-bun packages/jumper/src/cli.ts fmt packages/jumper/examples/autopay.jumper --check
-bun packages/jumper/src/cli.ts diff before.jumper after.jumper
-bun packages/jumper/src/cli.ts scenarios packages/jumper/examples/autopay.jumper
-```
+Releases use [Changesets](https://github.com/changesets/changesets). When a change affects users of `jumper-cli`, run `bun changeset` and commit the file it makes. The release workflow opens a "Version Packages" pull request. Merge it to publish to npm.
 
-`check` prints each problem with its source line and a suggested fix. It exits with 1 when the board has errors or gaps. Add `--json` to get the diagnostics as JSON for editors, scripts and agents. `build` options are `--breadboard`, `--no-notes` and `--story <n>`. `fmt` prints the file in the canonical layout, so the same board always diffs the same. Add `--write` to format the file in place, or `--check` to exit with 1 when it is not formatted. `diff` compares two versions of a board by meaning: places by id, wires by key and stories by title. It lists what changed and the stories to read again. Add `--json` for tools. `scenarios` prints each story as a test scenario in JSON: for each step, the place, who acts, the affordance and the place to expect next. A test generator maps these to routes and selectors.
+## Licence
 
-## Develop
-
-```sh
-bun test           # language tests
-bun run typecheck  # all packages
-bun run check      # Biome format and lint
-bun run build      # playground production build in apps/playground/dist
-```
+[MIT](LICENSE)
