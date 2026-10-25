@@ -1,0 +1,20 @@
+{
+  "name": "@jumper/lang",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./examples": "./src/examples.ts"
+  },
+  "bin": {
+    "jumper": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@jumper/typescript-config": "workspace:*"
+  }
+}

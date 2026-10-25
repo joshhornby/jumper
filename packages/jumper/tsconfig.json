@@ -1,0 +1,4 @@
+{
+  "extends": "@jumper/typescript-config/base.json",
+  "include": ["src", "test"]
+}
