@@ -45,7 +45,7 @@
     },
     "packages/cli": {
       "name": "jumper-cli",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "bin": {
         "jumper": "./dist/cli.js",
       },
