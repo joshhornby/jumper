@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const MAX_SOURCE = 200_000;
+export const MAX_SOURCE = 200_000;
 const STORAGE_KEY = "jumper.playground.v1";
 
 export const Settings = z.object({
@@ -9,6 +9,8 @@ export const Settings = z.object({
   showNotes: z.boolean().catch(true),
   showSource: z.boolean().catch(true),
   showSide: z.boolean().catch(true),
+  /** The saved board open in the editor, or null for an example or unsaved work. */
+  boardId: z.string().nullable().catch(null),
 });
 
 export type Settings = z.infer<typeof Settings>;

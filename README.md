@@ -48,6 +48,8 @@ Run the playground at http://localhost:3000:
 bun run dev
 ```
 
+The playground keeps your own boards in the browser. Use **Save** (Ctrl+S or Cmd+S) to save the board you are editing, and open it again from the menu next to the logo. **My boards** in the side pane can rename, delete, import and export boards as `.jumper` files. The browser is the only copy, so export a board to keep it safe or to add it to the repository.
+
 Use the CLI:
 
 ```sh

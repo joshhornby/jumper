@@ -15,6 +15,8 @@ type EditorProps = {
   onChange: (value: string) => void;
   /** Receives the editor's text, which can be ahead of `value` straight after a key press. */
   onFormat: (text: string) => void;
+  /** Receives the editor's text, for the same reason as `onFormat`. */
+  onSave: (text: string) => void;
   diagnostics: readonly Diagnostic[];
   placeIds: readonly string[];
   ref: React.Ref<EditorHandle>;
@@ -30,11 +32,11 @@ const theme = EditorView.theme({
   ".cm-tooltip": { backgroundColor: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" },
 });
 
-export function Editor({ value, onChange, onFormat, diagnostics, placeIds, ref }: EditorProps) {
+export function Editor({ value, onChange, onFormat, onSave, diagnostics, placeIds, ref }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const latest = useRef({ onChange, onFormat, placeIds });
-  latest.current = { onChange, onFormat, placeIds };
+  const latest = useRef({ onChange, onFormat, onSave, placeIds });
+  latest.current = { onChange, onFormat, onSave, placeIds };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the view is created once. The next effect syncs later changes to `value`.
   useEffect(() => {
@@ -50,6 +52,14 @@ export function Editor({ value, onChange, onFormat, diagnostics, placeIds, ref }
                 key: "Shift-Alt-f",
                 run: (target) => {
                   latest.current.onFormat(target.state.doc.toString());
+                  return true;
+                },
+              },
+              {
+                // Returning true also stops the browser's own Save Page dialog.
+                key: "Mod-s",
+                run: (target) => {
+                  latest.current.onSave(target.state.doc.toString());
                   return true;
                 },
               },

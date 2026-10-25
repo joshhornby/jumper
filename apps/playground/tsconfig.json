@@ -1,4 +1,4 @@
 {
   "extends": "@jumper/typescript-config/react.json",
-  "include": ["src"]
+  "include": ["src", "test"]
 }

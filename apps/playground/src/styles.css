@@ -393,6 +393,60 @@ input:focus-visible {
   border-color: var(--accent);
 }
 
+.board-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.boards {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boards li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px;
+  align-items: center;
+}
+
+.board-open {
+  display: grid;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.board-open:hover {
+  background: var(--bg);
+}
+
+.board-open[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.button.small {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.muted.note {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 .story-title {
   font-weight: 600;
 }

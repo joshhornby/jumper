@@ -1,9 +1,20 @@
 import { type BuildResult, build, type Diagnostic, type Fidelity, formatSource, positionAt } from "@jumper/lang";
 import { examples } from "@jumper/lang/examples";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  cleanName,
+  fileName,
+  isBoardsKey,
+  loadBoards,
+  MAX_BOARDS,
+  nameFromFile,
+  type SavedBoard,
+  uniqueName,
+  updateBoards,
+} from "./boards.ts";
 import { Editor, type EditorHandle } from "./Editor.tsx";
 import { Preview } from "./Preview.tsx";
-import { loadSettings, readShareHash, saveSettings, shareHash } from "./state.ts";
+import { loadSettings, MAX_SOURCE, readShareHash, saveSettings, shareHash } from "./state.ts";
 
 type Ok = Extract<BuildResult, { ok: true }>;
 
@@ -12,6 +23,17 @@ const DEFAULT_SOURCE = firstExample?.source ?? '(board "Untitled")';
 
 function plural({ count, word }: { count: number; word: string }): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+const SAVED_AT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+function downloadFile({ name, type, text }: { name: string; type: string; text: string }): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function PaneIcon({ side }: { side: "left" | "right" }) {
@@ -30,6 +52,9 @@ export function App() {
   const [showNotes, setShowNotes] = useState(saved?.showNotes ?? true);
   const [showSource, setShowSource] = useState(saved?.showSource ?? true);
   const [showSide, setShowSide] = useState(saved?.showSide ?? true);
+  const [boards, setBoards] = useState<SavedBoard[]>(loadBoards);
+  const [boardId, setBoardId] = useState<string | null>(saved?.boardId ?? null);
+  const importInput = useRef<HTMLInputElement>(null);
   const [story, setStory] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [fitSignal, setFitSignal] = useState(0);
@@ -39,14 +64,24 @@ export function App() {
     void readShareHash(window.location.hash).then((shared) => {
       if (shared === null) return;
       setSource(shared);
+      setBoardId(null);
       setFitSignal((signal) => signal + 1);
       history.replaceState(null, "", window.location.pathname);
     });
   }, []);
 
   useEffect(() => {
-    saveSettings({ source, fidelity, showNotes, showSource, showSide });
-  }, [source, fidelity, showNotes, showSource, showSide]);
+    saveSettings({ source, fidelity, showNotes, showSource, showSide, boardId });
+  }, [source, fidelity, showNotes, showSource, showSide, boardId]);
+
+  // Another tab may save or delete a board. The storage event keeps this tab's list current.
+  useEffect(() => {
+    const listen = (event: StorageEvent): void => {
+      if (isBoardsKey(event.key)) setBoards(loadBoards());
+    };
+    window.addEventListener("storage", listen);
+    return () => window.removeEventListener("storage", listen);
+  }, []);
 
   useEffect(() => {
     if (toast === null) return undefined;
@@ -71,16 +106,126 @@ export function App() {
   const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
   const gaps = result.diagnostics.filter((diagnostic) => diagnostic.severity === "gap");
 
-  const loadExample = (id: string): void => {
-    const example = examples.find((candidate) => candidate.id === id);
-    if (example === undefined) return;
-    setSource(example.source);
+  // A board deleted in another tab is no longer open, so its text becomes unsaved work.
+  const openBoard = boards.find((board) => board.id === boardId) ?? null;
+  const unsaved = openBoard === null ? !examples.some((example) => example.source === source) : openBoard.source !== source;
+  const newestFirst = [...boards].sort((a, b) => b.updatedAt - a.updatedAt);
+
+  const confirmDiscard = (): boolean => !unsaved || window.confirm("Your changes to this board are not saved. Discard them?");
+
+  const openSource = ({ text, id }: { text: string; id: string | null }): void => {
+    setSource(text);
+    setBoardId(id);
     setStory(null);
     setFitSignal((signal) => signal + 1);
   };
 
+  /** Applies a change to the saved boards. The change shows only if the browser stored it, so nothing looks saved that is not. */
+  const commitBoards = ({ change, done }: { change: (list: SavedBoard[]) => SavedBoard[]; done: string }): boolean => {
+    const { boards: next, stored } = updateBoards(change);
+    if (!stored) {
+      setToast("The browser could not save. Its storage may be full or blocked.");
+      return false;
+    }
+    setBoards(next);
+    setToast(done);
+    return true;
+  };
+
+  const askName = ({ suggested, others }: { suggested: string; others: readonly SavedBoard[] }): string | null => {
+    const answer = window.prompt("Name this board", uniqueName({ name: suggested, boards: others }));
+    if (answer === null) return null;
+    const name = cleanName(answer);
+    if (name === null) setToast("A board needs a name.");
+    return name === null ? null : uniqueName({ name, boards: others });
+  };
+
+  const saveAs = (text: string = source): void => {
+    if (boards.length >= MAX_BOARDS) {
+      setToast(`You have ${MAX_BOARDS} saved boards. Delete one to save another.`);
+      return;
+    }
+    const name = askName({ suggested: shown?.board.title ?? "Untitled board", others: boards });
+    if (name === null) return;
+    const board: SavedBoard = { id: crypto.randomUUID(), name, source: text, updatedAt: Date.now() };
+    if (commitBoards({ change: (list) => [...list, board], done: `Saved “${name}”.` })) setBoardId(board.id);
+  };
+
+  const save = (text: string = source): void => {
+    if (openBoard === null) {
+      saveAs(text);
+      return;
+    }
+    const updatedAt = Date.now();
+    commitBoards({
+      change: (list) => list.map((board) => (board.id === openBoard.id ? { ...board, source: text, updatedAt } : board)),
+      done: `Saved “${openBoard.name}”.`,
+    });
+  };
+
+  const rename = (target: SavedBoard): void => {
+    const name = askName({ suggested: target.name, others: boards.filter((board) => board.id !== target.id) });
+    if (name === null || name === target.name) return;
+    commitBoards({
+      change: (list) => list.map((board) => (board.id === target.id ? { ...board, name } : board)),
+      done: `Renamed to “${name}”.`,
+    });
+  };
+
+  const remove = (target: SavedBoard): void => {
+    if (!window.confirm(`Delete “${target.name}”? You cannot undo this.`)) return;
+    // The editor keeps the text of an open board, so deleting it loses nothing on screen.
+    if (commitBoards({ change: (list) => list.filter((board) => board.id !== target.id), done: `Deleted “${target.name}”.` })) {
+      if (target.id === boardId) setBoardId(null);
+    }
+  };
+
+  const openSaved = (board: SavedBoard): void => {
+    if (board.id === boardId || !confirmDiscard()) return;
+    openSource({ text: board.source, id: board.id });
+  };
+
+  const choose = (value: string): void => {
+    const split = value.indexOf(":");
+    const kind = value.slice(0, split);
+    const id = value.slice(split + 1);
+    if (kind === "board") {
+      const board = boards.find((candidate) => candidate.id === id);
+      if (board !== undefined) openSaved(board);
+      return;
+    }
+    const example = examples.find((candidate) => candidate.id === id);
+    if (example === undefined || !confirmDiscard()) return;
+    openSource({ text: example.source, id: null });
+  };
+
+  const importFile = async (file: File): Promise<void> => {
+    const text = file.size > MAX_SOURCE * 4 ? null : await file.text();
+    if (text === null || text.length > MAX_SOURCE) {
+      setToast("That file is too large for the playground.");
+      return;
+    }
+    if (boards.length >= MAX_BOARDS) {
+      setToast(`You have ${MAX_BOARDS} saved boards. Delete one to import another.`);
+      return;
+    }
+    if (!confirmDiscard()) return;
+    const board: SavedBoard = {
+      id: crypto.randomUUID(),
+      name: uniqueName({ name: nameFromFile(file.name), boards }),
+      source: text,
+      updatedAt: Date.now(),
+    };
+    if (commitBoards({ change: (list) => [...list, board], done: `Imported “${board.name}”.` })) openSource({ text, id: board.id });
+  };
+
+  const exportSource = (): void => {
+    downloadFile({ name: fileName(openBoard?.name ?? shown?.board.title ?? "board"), type: "text/plain", text: source });
+  };
+
   // An edited example no longer matches, so the select falls back to its placeholder.
-  const selectedExample = examples.find((example) => example.source === source)?.id ?? "";
+  const selectedExample = examples.find((example) => example.source === source)?.id;
+  const selected = openBoard !== null ? `board:${openBoard.id}` : selectedExample === undefined ? "" : `example:${selectedExample}`;
 
   // The board gains or loses width, so fit it again.
   const togglePane = (setShow: (update: (shown: boolean) => boolean) => void): void => {
@@ -118,13 +263,11 @@ export function App() {
 
   const download = (): void => {
     if (shown === null) return;
-    const blob = new Blob([shown.svg], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${shown.board.title.replace(/[^\w-]+/g, "-").toLowerCase() || "board"}.svg`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadFile({
+      name: `${shown.board.title.replace(/[^\w-]+/g, "-").toLowerCase() || "board"}.svg`,
+      type: "image/svg+xml",
+      text: shown.svg,
+    });
   };
 
   // A story's gaps are the ones inside its source, so :touch and missing places count, not only missing hops.
@@ -158,17 +301,37 @@ export function App() {
         </div>
         <label className="field">
           <span className="sr-only">Example</span>
-          <select value={selectedExample} onChange={(event) => loadExample(event.target.value)} aria-label="Load an example">
+          <select value={selected} onChange={(event) => choose(event.target.value)} aria-label="Open an example or a saved board">
             <option value="" disabled>
-              Load example…
+              {unsaved ? "Unsaved board" : "Open…"}
             </option>
-            {examples.map((example) => (
-              <option key={example.id} value={example.id}>
-                {example.name}
-              </option>
-            ))}
+            {boards.length > 0 && (
+              <optgroup label="My boards">
+                {newestFirst.map((board) => (
+                  <option key={board.id} value={`board:${board.id}`}>
+                    {board.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Examples">
+              {examples.map((example) => (
+                <option key={example.id} value={`example:${example.id}`}>
+                  {example.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
+        <button
+          type="button"
+          className="button"
+          onClick={() => save()}
+          disabled={openBoard !== null && !unsaved}
+          title={openBoard === null ? "Save as a new board (Ctrl+S)" : `Save “${openBoard.name}” (Ctrl+S)`}
+        >
+          {openBoard !== null && !unsaved ? "Saved" : "Save"}
+        </button>
         <fieldset className="segmented" aria-label="Fidelity">
           {(["wireframe", "breadboard"] as const).map((option) => (
             <button key={option} type="button" aria-pressed={fidelity === option} onClick={() => setFidelity(option)}>
@@ -212,7 +375,15 @@ export function App() {
 
       <main className={`workspace${showSource ? "" : " no-source"}${showSide ? "" : " no-side"}`}>
         <section className="pane source-pane" aria-label="Source" hidden={!showSource}>
-          <Editor ref={editor} value={source} onChange={setSource} onFormat={format} diagnostics={result.diagnostics} placeIds={placeIds} />
+          <Editor
+            ref={editor}
+            value={source}
+            onChange={setSource}
+            onFormat={format}
+            onSave={save}
+            diagnostics={result.diagnostics}
+            placeIds={placeIds}
+          />
         </section>
 
         <section className="pane preview-pane" aria-label="Board">
@@ -224,7 +395,55 @@ export function App() {
           <Preview svg={shown?.svg ?? null} width={shown?.width ?? 0} height={shown?.height ?? 0} fitSignal={fitSignal} />
         </section>
 
-        <aside className="pane side-pane" aria-label="Stories and problems" hidden={!showSide}>
+        <aside className="pane side-pane" aria-label="Boards, stories and problems" hidden={!showSide}>
+          <h2>My boards</h2>
+          <div className="board-actions">
+            <button type="button" className="button" onClick={() => saveAs()}>
+              Save as new
+            </button>
+            <button type="button" className="button" onClick={() => importInput.current?.click()}>
+              Import
+            </button>
+            <button type="button" className="button" onClick={exportSource}>
+              Export
+            </button>
+            <input
+              ref={importInput}
+              type="file"
+              accept=".jumper,.txt,text/plain"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                // Clear the input, so that choosing the same file again still fires a change.
+                event.target.value = "";
+                if (file !== undefined) void importFile(file);
+              }}
+            />
+          </div>
+          {boards.length === 0 ? (
+            <p className="muted">Save a board to keep it here. Export it to keep a copy as a .jumper file.</p>
+          ) : (
+            <ul className="boards">
+              {newestFirst.map((board) => (
+                <li key={board.id}>
+                  <button type="button" className="board-open" aria-pressed={board.id === boardId} onClick={() => openSaved(board)}>
+                    <span className="story-title">{board.name}</span>
+                    <span className={board.id === boardId && unsaved ? "story-meta gap" : "story-meta"}>
+                      {board.id === boardId && unsaved ? "Unsaved changes" : `Saved ${SAVED_AT.format(board.updatedAt)}`}
+                    </span>
+                  </button>
+                  <button type="button" className="button small" onClick={() => rename(board)} aria-label={`Rename ${board.name}`}>
+                    Rename
+                  </button>
+                  <button type="button" className="button small" onClick={() => remove(board)} aria-label={`Delete ${board.name}`}>
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="muted note">Boards are kept in this browser only.</p>
+
           <h2>Stories</h2>
           {stories.length === 0 ? (
             <p className="muted">Add a (story …) to walk a path through the board.</p>
