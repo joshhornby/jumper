@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { examples } from "../src/examples.ts";
-import { analyse, applyEdits, build, compile, positionAt } from "../src/index.ts";
+import { analyse, applyEdits, build, compile, formatDiagnostic, positionAt, summarise } from "../src/index.ts";
 
 const classic = `
 (board "Invoice autopay"
@@ -338,5 +338,51 @@ describe("fixes", () => {
   test("no suggestion is made when two ids are equally close", () => {
     const source = `(board "A" (screen :a "A" (button "Go" -> :cat)) (screen :bat "B") (screen :hat "H"))`;
     expect(build({ source }).diagnostics[0]?.fix).toBeNull();
+  });
+});
+
+describe("format", () => {
+  test("a diagnostic reads like the Elm compiler: header, message, underline and fix", () => {
+    const source = `(board "Invoice"
+  (system :save "Save card"
+    (out "valid" -> :confirmation))
+  (screen :confirm "Confirmation"))`;
+    const [first] = build({ source }).diagnostics;
+    if (first === undefined) throw new Error("expected a diagnostic");
+    expect(formatDiagnostic({ source, file: "invoice.jumper", diagnostic: first })).toBe(
+      [
+        `-- UNKNOWN TARGET ${"-".repeat(42)} invoice.jumper:3:21`,
+        "",
+        '"valid" is wired to :confirmation, but no place has that id.',
+        "",
+        '3 |     (out "valid" -> :confirmation))',
+        "                        ^^^^^^^^^^^^^",
+        "",
+        "Did you mean :confirm?",
+        "",
+        "Try changing line 3 to:",
+        "",
+        '    (out "valid" -> :confirm))',
+      ].join("\n"),
+    );
+  });
+
+  test("related source is shown under the message", () => {
+    const source = `(board "A" (screen :a "A")\n  (screen :a "B"))`;
+    const [first] = build({ source }).diagnostics;
+    if (first === undefined) throw new Error("expected a diagnostic");
+    const text = formatDiagnostic({ source, file: "a.jumper", diagnostic: first });
+    expect(text).toContain(':a is first used here.\n\n1 | (board "A" (screen :a "A")\n                       ^^');
+  });
+
+  test("a syntax error in an empty position still formats", () => {
+    const diagnostic = build({ source: "" }).diagnostics[0];
+    if (diagnostic === undefined) throw new Error("expected a diagnostic");
+    expect(formatDiagnostic({ source: "", file: "empty.jumper", diagnostic })).toContain("MISSING BOARD");
+  });
+
+  test("the summary counts errors and gaps", () => {
+    expect(summarise([])).toBe("No errors and no gaps.");
+    expect(summarise(build({ source: `(board "A" (screen :a "A" (button "Go" -> :b) (link "X" -> :c)))` }).diagnostics)).toBe("2 gaps.");
   });
 });

@@ -55,7 +55,7 @@ bun packages/jumper/src/cli.ts check packages/jumper/examples/broken.jumper
 bun packages/jumper/src/cli.ts build packages/jumper/examples/autopay.jumper --story 1 -o autopay.svg
 ```
 
-`check` exits with 1 when the board has errors or gaps. `build` options are `--breadboard`, `--no-notes` and `--story <n>`.
+`check` prints each problem with its source line and a suggested fix. It exits with 1 when the board has errors or gaps. Add `--json` to get the diagnostics as JSON for editors, scripts and agents. `build` options are `--breadboard`, `--no-notes` and `--story <n>`.
 
 ## Develop
 

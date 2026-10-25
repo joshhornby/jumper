@@ -1,16 +1,27 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
+import { formatDiagnostic, summarise } from "./format.ts";
 import { build, type Diagnostic, positionAt } from "./index.ts";
 
 const USAGE = `Usage:
-  jumper check <file.jumper>
+  jumper check <file.jumper> [--json]
   jumper build <file.jumper> [-o out.svg] [--breadboard] [--no-notes] [--story <n>]`;
 
 function report({ file, source, diagnostics }: { file: string; source: string; diagnostics: Diagnostic[] }): void {
+  const colour = process.stderr.isTTY === true && !("NO_COLOR" in process.env);
   for (const diagnostic of diagnostics) {
-    const { line, column } = positionAt({ source, offset: diagnostic.span.start });
-    process.stderr.write(`${file}:${line}:${column} ${diagnostic.severity}: ${diagnostic.message}\n`);
+    process.stderr.write(`${formatDiagnostic({ source, file, diagnostic, colour })}\n\n`);
   }
+}
+
+/** Positions are added so that a consumer without the source can still show line and column. */
+function json({ file, source, diagnostics }: { file: string; source: string; diagnostics: Diagnostic[] }): string {
+  const located = diagnostics.map((diagnostic) => ({
+    ...diagnostic,
+    start: positionAt({ source, offset: diagnostic.span.start }),
+    end: positionAt({ source, offset: diagnostic.span.end }),
+  }));
+  return `${JSON.stringify({ file, diagnostics: located }, null, 2)}\n`;
 }
 
 const { positionals, values } = parseArgs({
@@ -20,6 +31,7 @@ const { positionals, values } = parseArgs({
     breadboard: { type: "boolean", default: false },
     "no-notes": { type: "boolean", default: false },
     story: { type: "string" },
+    json: { type: "boolean", default: false },
   },
 });
 
@@ -29,7 +41,12 @@ if ((command !== "check" && command !== "build") || file === undefined) {
   process.exit(2);
 }
 
-const source = await Bun.file(file).text();
+const input = Bun.file(file);
+if (!(await input.exists())) {
+  process.stderr.write(`I cannot find the file ${file}.\n`);
+  process.exit(2);
+}
+const source = await input.text();
 const story = values.story === undefined ? null : Number(values.story) - 1;
 const result = build({
   source,
@@ -37,14 +54,19 @@ const result = build({
   showNotes: !values["no-notes"],
   story,
 });
-report({ file, source, diagnostics: result.diagnostics });
 
-if (!result.ok) process.exit(1);
 if (command === "check") {
-  const gaps = result.diagnostics.length;
-  process.stderr.write(gaps === 0 ? "No gaps.\n" : `${gaps} gap${gaps === 1 ? "" : "s"}.\n`);
-  process.exit(gaps === 0 ? 0 : 1);
+  if (values.json) {
+    process.stdout.write(json({ file, source, diagnostics: result.diagnostics }));
+  } else {
+    report({ file, source, diagnostics: result.diagnostics });
+    process.stderr.write(`${summarise(result.diagnostics)}\n`);
+  }
+  process.exit(result.diagnostics.length === 0 ? 0 : 1);
 }
+
+report({ file, source, diagnostics: result.diagnostics });
+if (!result.ok) process.exit(1);
 if (values.out === undefined) {
   process.stdout.write(result.svg);
 } else {
