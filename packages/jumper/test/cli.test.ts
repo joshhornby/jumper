@@ -37,4 +37,11 @@ describe("cli", () => {
     expect(result.code).toBe(2);
     expect(result.stderr).toBe("I cannot find the file no-such-file.jumper.\n");
   });
+  test("check --json includes the board and analysis when the board compiles", () => {
+    const result = run(["check", join(EXAMPLES, "autopay.jumper"), "--json"]);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      board: { title: "Invoice autopay" },
+      analysis: { wires: expect.arrayContaining([expect.objectContaining({ key: ':invoice "Turn on Autopay"', to: "setup" })]) },
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import type { Span } from "./diagnostics.ts";
+import { quote } from "./reader.ts";
 
 export type WireRef = {
   target: string;
@@ -82,6 +83,12 @@ export type Board = {
 };
 
 export type Wire = {
+  /**
+   * A stable name for the wire: the source place and the affordance, such as `:invoice "Pay"`.
+   * It does not change when other widgets move, so tools can use it to compare two versions of a board.
+   * A repeated affordance on one place gets a suffix, such as `:invoice "Pay" #2`.
+   */
+  key: string;
   from: string;
   widget: number;
   to: string;
@@ -108,13 +115,19 @@ export function wireText(widget: Widget): string {
 export function wiresOf(board: Board): Wire[] {
   const wires: Wire[] = [];
   for (const place of board.places) {
+    const counts = new Map<string, number>();
     place.widgets.forEach((widget, index) => {
       if (widget.wire === null) return;
+      const affordance = wireText(widget);
+      const base = `:${place.id} ${quote(affordance)}`;
+      const count = (counts.get(base) ?? 0) + 1;
+      counts.set(base, count);
       wires.push({
+        key: count === 1 ? base : `${base} #${count}`,
         from: place.id,
         widget: index,
         to: widget.wire.target,
-        affordance: wireText(widget),
+        affordance,
         label: widget.wire.label,
         targetSpan: widget.wire.targetSpan,
         span: widget.wire.span,

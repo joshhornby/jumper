@@ -119,7 +119,7 @@ describe("gaps", () => {
 
   test("every place with no incoming wire counts as an entry point", () => {
     const board = boardOf(`(board "A" (screen :a "A") (screen :b "B"))`);
-    expect(analyse({ board: board }).unreachable.size).toBe(0);
+    expect(analyse({ board: board }).unreachable.length).toBe(0);
   });
 });
 
@@ -422,5 +422,31 @@ describe("recovery", () => {
 
   test("a syntax error still stops everything, because the structure is unknown", () => {
     expect(codes(`(board "A" (screen :a "A" (button "Go" -> :nowhere))`)).toEqual(["unclosed-list"]);
+  });
+});
+
+describe("stable output", () => {
+  test("a build result survives a JSON round trip unchanged", () => {
+    for (const example of examples) {
+      const result = build({ source: example.source, story: 0 });
+      if (!result.ok) throw new Error(`${example.id} failed`);
+      expect(JSON.parse(JSON.stringify(result.analysis))).toEqual(result.analysis);
+    }
+  });
+
+  test("wire keys name the place and affordance, and do not change when a widget is added", () => {
+    const before = boardOf(`(board "A" (screen :a "A" (button "Go" -> :b) (button "Go" -> :b)) (screen :b "B"))`);
+    const after = boardOf(
+      `(board "A" (screen :a "A" (title "New") (link "Help" -> :b) (button "Go" -> :b) (button "Go" -> :b)) (screen :b "B"))`,
+    );
+    const keys = (board: Board): string[] => analyse({ board }).wires.map((wire) => wire.key);
+    expect(keys(before)).toEqual([':a "Go"', ':a "Go" #2']);
+    expect(keys(after)).toEqual([':a "Help"', ':a "Go"', ':a "Go" #2']);
+  });
+
+  test("two wires with one name that lead to different places are a gap", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :b) (link "go" -> :c)) (screen :b "B") (screen :c "C"))`;
+    expect(build({ source }).diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["duplicate-affordance"]);
+    expect(messages(`(board "A" (screen :a "A" (button "Save" -> :b) (button "Save" -> :b)) (screen :b "B"))`)).toEqual([]);
   });
 });

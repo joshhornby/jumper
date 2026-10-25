@@ -44,6 +44,7 @@ const SEVERITY = {
   "ambiguous-hop": "gap",
   "empty-story": "gap",
   "via-on-last-step": "gap",
+  "duplicate-affordance": "gap",
 } as const satisfies Record<string, Severity>;
 
 export type DiagnosticCode = keyof typeof SEVERITY;

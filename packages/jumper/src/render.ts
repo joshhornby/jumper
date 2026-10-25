@@ -299,6 +299,7 @@ export function render(options: RenderOptions): Rendered {
     return path === undefined ? "plain" : "dim";
   });
 
+  const unreachable = new Set(analysis.unreachable);
   const placeParts: string[] = [];
   for (const positioned of layout.places.values()) {
     const dimmed = path !== undefined && !visited.has(positioned.place.id);
@@ -309,7 +310,7 @@ export function render(options: RenderOptions): Rendered {
       y: positioned.y,
       fidelity,
       highlights: highlights.get(positioned.place.id) ?? new Set(),
-      unreachable: analysis.unreachable.has(positioned.place.id),
+      unreachable: unreachable.has(positioned.place.id),
     });
     placeParts.push(dimmed ? `<g opacity="0.35">${drawn}</g>` : drawn);
   }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
 import { formatDiagnostic, summarise } from "./format.ts";
-import { build, type Diagnostic, positionAt } from "./index.ts";
+import { type BuildResult, build, type Diagnostic, positionAt } from "./index.ts";
 
 const USAGE = `Usage:
   jumper check <file.jumper> [--json]
@@ -14,14 +14,18 @@ function report({ file, source, diagnostics }: { file: string; source: string; d
   }
 }
 
-/** Positions are added so that a consumer without the source can still show line and column. */
-function json({ file, source, diagnostics }: { file: string; source: string; diagnostics: Diagnostic[] }): string {
-  const located = diagnostics.map((diagnostic) => ({
+/**
+ * Positions are added so that a consumer without the source can still show line and column.
+ * The board and analysis are included when the board compiled, so that agents can read the behaviour.
+ */
+function json({ file, source, result }: { file: string; source: string; result: BuildResult }): string {
+  const diagnostics = result.diagnostics.map((diagnostic) => ({
     ...diagnostic,
     start: positionAt({ source, offset: diagnostic.span.start }),
     end: positionAt({ source, offset: diagnostic.span.end }),
   }));
-  return `${JSON.stringify({ file, diagnostics: located }, null, 2)}\n`;
+  const body = result.ok ? { file, diagnostics, board: result.board, analysis: result.analysis } : { file, diagnostics };
+  return `${JSON.stringify(body, null, 2)}\n`;
 }
 
 const { positionals, values } = parseArgs({
@@ -57,7 +61,7 @@ const result = build({
 
 if (command === "check") {
   if (values.json) {
-    process.stdout.write(json({ file, source, diagnostics: result.diagnostics }));
+    process.stdout.write(json({ file, source, result }));
   } else {
     report({ file, source, diagnostics: result.diagnostics });
     process.stderr.write(`${summarise(result.diagnostics)}\n`);

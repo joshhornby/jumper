@@ -82,6 +82,7 @@ An **error** is malformed source, such as a missing parenthesis or an unknown wi
 A **gap** is a hole in the shaping work. The board still draws, and the gap is marked on it:
 
 - A wire points at an id that no place has.
+- Two wires on one place have the same name but lead to different places. A story cannot say which one it means.
 - A group of places is unreachable. Every place with no incoming wire counts as an entry point, so only a loop with no way in, and the places it leads to, are gaps.
 - A story step is on a place that does not exist.
 - A story hop has no wire behind it, or its `:via` leads somewhere else.

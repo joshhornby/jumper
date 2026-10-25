@@ -18,11 +18,13 @@ export type StoryPath = {
   highlights: (number | null)[];
 };
 
+/** Plain data in a fixed order, so the same source always gives the same JSON. */
 export type Analysis = {
   wires: Wire[];
-  /** Wires whose target place does not exist. Indexes into `wires`. */
-  danglingWires: Set<number>;
-  unreachable: Set<string>;
+  /** Wires whose target place does not exist, as ascending indexes into `wires`. */
+  danglingWires: number[];
+  /** Ids of unreachable places, in source order. */
+  unreachable: string[];
   stories: StoryPath[];
   diagnostics: Diagnostic[];
 };
@@ -69,11 +71,11 @@ export function analyse({ board, incomplete = COMPLETE }: { board: Board; incomp
     if (joining.length !== 1 || only === undefined) return null;
     return { message: `Use the wire that leads to :${to}: ${quote(only.affordance)}`, edit: { span, text: quote(only.affordance) } };
   };
-  const danglingWires = new Set<number>();
+  const danglingWires: number[] = [];
 
   wires.forEach((wire, index) => {
     if (!places.has(wire.to)) {
-      danglingWires.add(index);
+      danglingWires.push(index);
       if (incomplete.places.has(wire.to)) return;
       gap({
         code: "unknown-target",
@@ -83,6 +85,24 @@ export function analyse({ board, incomplete = COMPLETE }: { board: Board; incomp
       });
     }
   });
+
+  for (const place of board.places) {
+    const seen = new Map<string, Wire>();
+    for (const wire of wiresFrom(place.id)) {
+      const name = wire.affordance.trim().toLowerCase();
+      const first = seen.get(name);
+      if (first === undefined) {
+        seen.set(name, wire);
+      } else if (first.to !== wire.to && !incomplete.places.has(place.id)) {
+        gap({
+          code: "duplicate-affordance",
+          message: `${place.title} has two wires named "${wire.affordance}" that lead to different places. Rename one, so that a story can say which it means.`,
+          span: wire.span,
+          related: [{ span: first.span, message: `The first "${first.affordance}" leads to :${first.to}.` }],
+        });
+      }
+    }
+  }
 
   const incoming = new Map<string, number>();
   for (const wire of wires) {
@@ -101,10 +121,10 @@ export function analyse({ board, incomplete = COMPLETE }: { board: Board; incomp
       }
     }
   }
-  const unreachable = new Set<string>();
+  const unreachable: string[] = [];
   for (const place of board.places) {
     if (reached.has(place.id)) continue;
-    unreachable.add(place.id);
+    unreachable.push(place.id);
     // A dropped widget may have held the wire that reaches this place.
     if (incomplete.places.size > 0) continue;
     gap({ code: "unreachable", message: `${place.title} is unreachable. No entry point leads to it.`, span: place.idSpan });
