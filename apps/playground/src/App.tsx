@@ -249,6 +249,7 @@ export function App() {
                     <button type="button" className={diagnostic.severity} onClick={() => editor.current?.reveal(diagnostic.span.start)}>
                       <span className="severity">{diagnostic.severity}</span>
                       <span className="message">{diagnostic.message}</span>
+                      {diagnostic.fix !== null && <span className="fix">{diagnostic.fix.message}</span>}
                       <span className="where">
                         {line}:{column}
                       </span>

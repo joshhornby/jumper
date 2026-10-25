@@ -75,11 +75,26 @@ export function Editor({ value, onChange, diagnostics, placeIds, ref }: EditorPr
     const length = editor.state.doc.length;
     const marks: LintDiagnostic[] = diagnostics.map((diagnostic) => {
       const from = Math.min(diagnostic.span.start, length);
+      const edit = diagnostic.fix?.edit ?? null;
       return {
         from,
         to: Math.max(from, Math.min(diagnostic.span.end, length)),
         severity: diagnostic.severity === "error" ? "error" : "warning",
-        message: diagnostic.message,
+        message: diagnostic.fix === null ? diagnostic.message : `${diagnostic.message} ${diagnostic.fix.message}`,
+        actions:
+          edit === null
+            ? []
+            : [
+                {
+                  name: "Fix",
+                  // The source may have changed since the diagnostic was made, so the edit is clamped to the document.
+                  apply: (target: EditorView) => {
+                    const size = target.state.doc.length;
+                    const start = Math.min(edit.span.start, size);
+                    target.dispatch({ changes: { from: start, to: Math.max(start, Math.min(edit.span.end, size)), insert: edit.text } });
+                  },
+                },
+              ],
       };
     });
     editor.dispatch(setDiagnostics(editor.state, marks));

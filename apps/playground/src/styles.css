@@ -413,7 +413,7 @@ input:focus-visible {
 }
 
 .severity {
-  grid-row: span 2;
+  grid-row: span 3;
   align-self: start;
   padding: 1px 6px;
   border-radius: 4px;
@@ -430,6 +430,11 @@ input:focus-visible {
 .error .severity {
   background: var(--error);
   color: #fff;
+}
+
+.fix {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .where {
