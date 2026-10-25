@@ -1,12 +1,14 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
+import { describeDiff, diff } from "./diff.ts";
 import { formatDiagnostic, summarise } from "./format.ts";
 import { type BuildResult, build, type Diagnostic, formatSource, positionAt } from "./index.ts";
 
 const USAGE = `Usage:
   jumper check <file.jumper> [--json]
   jumper build <file.jumper> [-o out.svg] [--breadboard] [--no-notes] [--story <n>]
-  jumper fmt <file.jumper> [--write | --check]`;
+  jumper fmt <file.jumper> [--write | --check]
+  jumper diff <before.jumper> <after.jumper> [--json]`;
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -51,7 +53,8 @@ async function load(file: string): Promise<string> {
   return input.text();
 }
 
-async function check(file: string): Promise<number> {
+async function check([file]: string[]): Promise<number> {
+  if (file === undefined) return usage();
   const source = await load(file);
   const result = build({ source });
   if (values.json) {
@@ -63,7 +66,8 @@ async function check(file: string): Promise<number> {
   return result.diagnostics.length === 0 ? 0 : 1;
 }
 
-async function buildSvg(file: string): Promise<number> {
+async function buildSvg([file]: string[]): Promise<number> {
+  if (file === undefined) return usage();
   const source = await load(file);
   const result = build({
     source,
@@ -78,7 +82,8 @@ async function buildSvg(file: string): Promise<number> {
   return 0;
 }
 
-async function fmt(file: string): Promise<number> {
+async function fmt([file]: string[]): Promise<number> {
+  if (file === undefined) return usage();
   const source = await load(file);
   const result = formatSource(source);
   if (!result.ok) {
@@ -98,13 +103,32 @@ async function fmt(file: string): Promise<number> {
   return 0;
 }
 
-const COMMANDS: Record<string, (file: string) => Promise<number>> = { check, build: buildSvg, fmt };
-
-const [command = "", file] = positionals;
-const run = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
-if (run === undefined || file === undefined) {
-  process.stderr.write(`${USAGE}\n`);
-  process.exit(2);
+/** Both versions must compile, because a diff of a broken board would compare guesses. */
+async function difference([first, second]: string[]): Promise<number> {
+  if (first === undefined || second === undefined) return usage();
+  const sides = await Promise.all(
+    [first, second].map(async (file) => {
+      const source = await load(file);
+      const result = build({ source });
+      if (!result.ok) report({ file, source, diagnostics: result.diagnostics });
+      return result.ok ? result : null;
+    }),
+  );
+  const [before = null, after = null] = sides;
+  if (before === null || after === null) return 1;
+  const change = diff({ before, after });
+  process.stdout.write(values.json ? `${JSON.stringify(change, null, 2)}\n` : `${describeDiff(change)}\n`);
+  return 0;
 }
+
+function usage(): number {
+  process.stderr.write(`${USAGE}\n`);
+  return 2;
+}
+
+const COMMANDS: Record<string, (files: string[]) => Promise<number>> = { check, build: buildSvg, fmt, diff: difference };
+
+const [command = "", ...files] = positionals;
+const run = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
 // Set the code instead of calling exit, so that a large SVG on stdout is not cut short.
-process.exitCode = await run(file);
+process.exitCode = run === undefined ? usage() : await run(files);

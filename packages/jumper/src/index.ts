@@ -10,6 +10,7 @@ export type { Analysis, Hop, StoryPath } from "./check.ts";
 export type { CompileResult, Incomplete } from "./compile.ts";
 export type { Diagnostic, DiagnosticCode, Edit, Fix, Position, Related, Severity, Span } from "./diagnostics.ts";
 export { applyEdits, positionAt } from "./diagnostics.ts";
+export { type Analysed, type BoardDiff, describeDiff, diff, type Retarget } from "./diff.ts";
 export { formatDiagnostic, summarise } from "./format.ts";
 export type { Board, Place, PlaceKind, Region, Step, Story, Widget, Wire } from "./model.ts";
 export { type FormatResult, formatSource } from "./print.ts";

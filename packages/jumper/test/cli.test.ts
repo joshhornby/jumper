@@ -67,4 +67,15 @@ describe("cli", () => {
     expect(result.code).toBe(2);
     expect(result.stderr).toContain("Usage:");
   });
+  test("diff describes the change between two files", () => {
+    const folder = mkdtempSync(join(tmpdir(), "jumper-"));
+    const before = join(folder, "before.jumper");
+    const after = join(folder, "after.jumper");
+    writeFileSync(before, `(board "A" (screen :a "A" (button "Go" -> :b)) (screen :b "B") (screen :c "C"))`);
+    writeFileSync(after, `(board "A" (screen :a "A" (button "Go" -> :c)) (screen :b "B") (screen :c "C"))`);
+    const result = run(["diff", before, after]);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(':a "Go" now leads to :c, not :b');
+    expect(JSON.parse(run(["diff", before, after, "--json"]).stdout)).toMatchObject({ wires: { retargeted: [{ key: ':a "Go"' }] } });
+  });
 });

@@ -1,6 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { examples } from "../src/examples.ts";
-import { analyse, applyEdits, type Board, build, compile, formatDiagnostic, formatSource, positionAt, summarise } from "../src/index.ts";
+import {
+  analyse,
+  applyEdits,
+  type Board,
+  build,
+  compile,
+  diff,
+  formatDiagnostic,
+  formatSource,
+  positionAt,
+  summarise,
+} from "../src/index.ts";
 
 const classic = `
 (board "Invoice autopay"
@@ -517,5 +528,56 @@ describe("fmt", () => {
 
   test("a syntax error stops formatting", () => {
     expect(formatSource(`(board "A"`)).toMatchObject({ ok: false, diagnostics: [{ code: "unclosed-list" }] });
+  });
+});
+
+describe("diff", () => {
+  function analysed(source: string) {
+    const result = build({ source });
+    if (!result.ok) throw new Error("did not compile");
+    return result;
+  }
+
+  const base = `(board "A"
+  (screen :cart "Cart" (primary "Checkout" -> :pay))
+  (screen :pay "Pay" (primary "Pay" -> :done))
+  (screen :done "Done"))
+(story "Buys" (step :cart "1") (step :pay "2") (step :done "3"))
+(story "Looks" (step :cart "1"))`;
+
+  test("moving code and changing layout is not a change in behaviour", () => {
+    const moved = `(board "A"
+  (region "Shop" (screen :pay "Pay" (primary "Pay" -> :done)) (screen :cart "Cart" (primary "Checkout" -> :pay)))
+  (screen :done "Done"))
+(story "Looks" (step :cart "1"))
+(story "Buys" (step :cart "1") (step :pay "2") (step :done "3"))`;
+    const change = diff({ before: analysed(base), after: analysed(moved) });
+    expect(change).toEqual({
+      places: { added: [], removed: [], changed: [] },
+      wires: { added: [], removed: [], retargeted: [] },
+      stories: { added: [], removed: [], changed: [] },
+      affected: [],
+    });
+  });
+
+  test("a retargeted wire lists the stories whose path it changes", () => {
+    const after = base
+      .replace(`(primary "Pay" -> :done)`, `(primary "Pay" -> :check)`)
+      .replace(`(screen :done "Done"))`, `(system :check "Check card" (out "ok" -> :done)) (screen :done "Done"))`);
+    const change = diff({ before: analysed(base), after: analysed(after) });
+    expect(change.places).toEqual({ added: ["check"], removed: [], changed: ["pay"] });
+    expect(change.wires).toEqual({
+      added: [':check "ok"'],
+      removed: [],
+      retargeted: [{ key: ':pay "Pay"', before: "done", after: "check" }],
+    });
+    expect(change.affected).toEqual(["Buys"]);
+  });
+
+  test("an edited story is affected, and an untouched one is not", () => {
+    const after = base.replace(`(step :cart "1"))`, `(step :cart "Browses"))`);
+    const change = diff({ before: analysed(base), after: analysed(after) });
+    expect(change.stories.changed).toEqual(["Looks"]);
+    expect(change.affected).toEqual(["Looks"]);
   });
 });
