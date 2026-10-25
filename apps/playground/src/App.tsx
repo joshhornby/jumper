@@ -113,12 +113,14 @@ export function App() {
     URL.revokeObjectURL(url);
   };
 
+  // A story's gaps are the ones inside its source, so :touch and missing places count, not only missing hops.
   const pathFor = (index: number): { gaps: number; steps: number } => {
-    const path = shown?.analysis.stories[index];
-    return {
-      gaps: path?.hops.filter((hop) => hop.kind === "missing").length ?? 0,
-      steps: shown?.board.stories[index]?.steps.length ?? 0,
-    };
+    const item = shown?.board.stories[index];
+    if (shown === null || item === undefined) return { gaps: 0, steps: 0 };
+    const inside = shown.diagnostics.filter(
+      (diagnostic) => diagnostic.span.start >= item.span.start && diagnostic.span.end <= item.span.end,
+    );
+    return { gaps: inside.length, steps: item.steps.length };
   };
 
   return (
