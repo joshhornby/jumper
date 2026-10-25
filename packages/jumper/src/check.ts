@@ -70,12 +70,13 @@ export function analyse(board: Board): Analysis {
   for (const place of board.places) {
     if (reached.has(place.id)) continue;
     unreachable.add(place.id);
-    gap({ message: `${place.title} is unreachable. It sits in a loop that no entry point leads into.`, span: place.span });
+    gap({ message: `${place.title} is unreachable. No entry point leads to it.`, span: place.span });
   }
 
   const stories: StoryPath[] = board.stories.map((story) => {
     const hops: Hop[] = [];
     const highlights: (number | null)[] = [];
+    if (story.steps.length === 0) gap({ message: `The story "${story.title}" has no steps.`, span: story.span });
 
     story.steps.forEach((step, index) => {
       const place = places.get(step.place);
@@ -91,7 +92,10 @@ export function analyse(board: Board): Analysis {
       }
 
       const next = story.steps[index + 1];
-      if (next === undefined) return;
+      if (next === undefined) {
+        if (step.via !== null) gap({ message: `The last step has :via "${step.via}", but no step comes after it.`, span: step.span });
+        return;
+      }
       // A missing place already has its own gap, so the hop is marked without a second one.
       if (place === undefined) {
         hops.push({ kind: "missing", from: step.place, to: next.place });

@@ -273,6 +273,10 @@ export function compile(source: string): CompileResult {
         fail({ message: `:${key.name} needs a "string".`, span: value?.span ?? key.span });
         return null;
       }
+      if (step[key.name] !== null) {
+        fail({ message: `This step already has :${key.name}. A step takes it once.`, span: key.span });
+        return null;
+      }
       step[key.name] = value.value;
       index += 2;
     }

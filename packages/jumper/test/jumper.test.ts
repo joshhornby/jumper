@@ -112,6 +112,11 @@ describe("gaps", () => {
     expect([...analyse(board).unreachable]).toEqual(["x", "y"]);
   });
 
+  test("a place downstream of an orphan loop is unreachable, and the message does not say it is in the loop", () => {
+    const source = `(board "A" (screen :s "S") (screen :x "X" (link "y" -> :y)) (screen :y "Y" (link "x" -> :x) (link "z" -> :z)) (screen :z "Z"))`;
+    expect(messages(source)).toContain("gap: Z is unreachable. No entry point leads to it.");
+  });
+
   test("every place with no incoming wire counts as an entry point", () => {
     const board = boardOf(`(board "A" (screen :a "A") (screen :b "B"))`);
     expect(analyse(board).unreachable.size).toBe(0);
@@ -162,6 +167,20 @@ describe("stories", () => {
   test(":via is still checked when the next step's place is missing", () => {
     const source = `(board "A" (screen :a "A" (button "Go" -> :b)) (screen :b "B")) (story "S" (step :a "1" :via "Typo") (step :ghost "2"))`;
     expect(messages(source)).toEqual(['gap: A has no wired affordance "Typo".', "gap: Step 2 is on :ghost, but no place has that id."]);
+  });
+
+  test("a story with no steps is a gap", () => {
+    expect(messages(`(board "A" (screen :a "A")) (story "Empty")`)).toEqual(['gap: The story "Empty" has no steps.']);
+  });
+
+  test(":via on the last step is a gap, because no hop follows it", () => {
+    const source = `(board "A" (screen :a "A" (button "Go" -> :b)) (screen :b "B")) (story "S" (step :a "1" :via "Go") (step :b "2" :via "Nope"))`;
+    expect(messages(source)).toEqual(['gap: The last step has :via "Nope", but no step comes after it.']);
+  });
+
+  test("a step that repeats :via is an error", () => {
+    const source = `(board "A" (screen :a "A")) (story "S" (step :a "1" :via "x" :via "y"))`;
+    expect(messages(source)).toEqual(["error: This step already has :via. A step takes it once."]);
   });
 
   test(":touch highlights the named widget, and :via highlights the affordance", () => {
